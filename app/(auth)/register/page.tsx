@@ -4,10 +4,12 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { GraduationIcon, MicIcon } from "@/components/icons";
+import { GoogleIcon, GraduationIcon, MicIcon } from "@/components/icons";
+import { PasswordField } from "@/components/PasswordField";
 import {
   dashboardPathForRole,
   describeAuthError,
+  signInWithGoogle,
   signUpWithEmail,
   type AppRole,
 } from "@/lib/firebase/auth";
@@ -32,7 +34,21 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function handleGoogleSignUp() {
+    setError(null);
+    setGoogleSubmitting(true);
+    try {
+      const { profile } = await signInWithGoogle({ requestedRole: role });
+      router.push(dashboardPathForRole(profile.role));
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setGoogleSubmitting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,7 +91,37 @@ function RegisterForm() {
         </div>
       </div>
 
-      <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
+      <button
+        type="button"
+        disabled={googleSubmitting || submitting}
+        onClick={handleGoogleSignUp}
+        className="btn btn-secondary mt-6 w-full justify-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <GoogleIcon className="h-5 w-5 shrink-0" />
+        {googleSubmitting ? t("auth.connecting") : t("auth.continueWithGoogle")}
+      </button>
+
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center" aria-hidden>
+          <span className="w-full border-t border-ink-200" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-ink-50 px-3 text-xs font-medium uppercase tracking-wide text-ink-400">
+            {t("auth.or")}
+          </span>
+        </div>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+        >
+          {error}
+        </div>
+      )}
+
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <Field
           label={t("auth.name")}
           placeholder="Pawan Dhanapala"
@@ -93,9 +139,8 @@ function RegisterForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Field
+        <PasswordField
           label={t("auth.password")}
-          type="password"
           placeholder="••••••••"
           autoComplete="new-password"
           minLength={6}
@@ -104,18 +149,9 @@ function RegisterForm() {
           required
         />
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
-          >
-            {error}
-          </div>
-        )}
-
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || googleSubmitting}
           className="btn btn-primary mt-2 justify-center disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {submitting ? "Creating account…" : t("auth.submit.register")}

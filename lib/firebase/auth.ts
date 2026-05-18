@@ -2,8 +2,10 @@
 
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as fbSignOut,
   updateProfile,
   type User,
@@ -170,6 +172,18 @@ export async function signUpWithEmail(input: {
   return { user: cred.user, profile };
 }
 
+/** Sign in with Google; new accounts get `requestedRole` (student/lecturer) when provided. */
+export async function signInWithGoogle(options?: { requestedRole?: AppRole }) {
+  const { auth } = getFirebase();
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  const cred = await signInWithPopup(auth, provider);
+  const profile = await ensureProfile(cred.user, {
+    requestedRole: options?.requestedRole,
+  });
+  return { user: cred.user, profile };
+}
+
 export async function signOut() {
   const { auth } = getFirebase();
   await fbSignOut(auth);
@@ -209,6 +223,13 @@ export function describeAuthError(err: unknown): string {
       return "Too many attempts. Try again in a few minutes.";
     case "auth/network-request-failed":
       return "Network error. Check your connection and try again.";
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return "Sign-in was cancelled. Try again when you’re ready.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in window. Allow popups for this site and try again.";
+    case "auth/account-exists-with-different-credential":
+      return "An account already exists with this email using a different sign-in method.";
     default:
       return err instanceof Error ? err.message : "Something went wrong.";
   }

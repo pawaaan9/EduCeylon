@@ -124,6 +124,11 @@ const en: Dict = {
   "auth.forgot": "Forgot password?",
   "auth.continueWith": "Or continue with",
   "auth.google": "Google",
+  "auth.continueWithGoogle": "Continue with Google",
+  "auth.connecting": "Connecting…",
+  "auth.or": "or",
+  "auth.showPassword": "Show password",
+  "auth.hidePassword": "Hide password",
   "auth.terms": "By signing up, you agree to our Terms and Privacy Policy.",
 
   "dashboard.welcome": "Welcome back",
@@ -243,6 +248,10 @@ const en: Dict = {
   "action.search": "Search",
   "action.filter": "Filter",
   "action.signOut": "Sign out",
+
+  "dashboard.signOutConfirm.title": "Sign out?",
+  "dashboard.signOutConfirm.message":
+    "Are you sure you want to sign out? You'll need to sign in again to access your dashboard.",
 };
 
 const si: Dict = {
@@ -367,6 +376,11 @@ const si: Dict = {
   "auth.forgot": "මුරපදය අමතකද?",
   "auth.continueWith": "හෝ පිවිසෙන්න",
   "auth.google": "Google",
+  "auth.continueWithGoogle": "Google සමඟ ඉදිරියට",
+  "auth.connecting": "සම්බන්ධ වෙමින්…",
+  "auth.or": "හෝ",
+  "auth.showPassword": "මුරපදය පෙන්වන්න",
+  "auth.hidePassword": "මුරපදය සඟවන්න",
   "auth.terms": "ලියාපදිංචි වීමෙන් අපගේ නියමයන් සහ රහස්‍යතා ප්‍රතිපත්තියට එකඟ වේ.",
 
   "dashboard.welcome": "ආයුබෝවන්",
@@ -486,6 +500,10 @@ const si: Dict = {
   "action.search": "සොයන්න",
   "action.filter": "පෙරහන",
   "action.signOut": "පිටවන්න",
+
+  "dashboard.signOutConfirm.title": "පිටවීමට?",
+  "dashboard.signOutConfirm.message":
+    "ඔබට විශ්වාසද ඔබ පිටවීමට කැමති බව? ඔබේ පාලක තිරයට නැවත පිවිසීමට නැවත පිවිසිය යුතුය.",
 };
 
 const ta: Dict = {
@@ -610,6 +628,11 @@ const ta: Dict = {
   "auth.forgot": "கடவுச்சொல் மறந்துவிட்டீர்களா?",
   "auth.continueWith": "அல்லது தொடரவும்",
   "auth.google": "Google",
+  "auth.continueWithGoogle": "Google உடன் தொடரவும்",
+  "auth.connecting": "இணைக்கிறது…",
+  "auth.or": "அல்லது",
+  "auth.showPassword": "கடவுச்சொல்லைக் காட்டு",
+  "auth.hidePassword": "கடவுச்சொல்லை மறை",
   "auth.terms": "பதிவு செய்வதன் மூலம் நிபந்தனைகள் மற்றும் தனியுரிமைக் கொள்கையை ஏற்கிறீர்கள்.",
 
   "dashboard.welcome": "மீண்டும் வரவேற்கிறோம்",
@@ -729,6 +752,10 @@ const ta: Dict = {
   "action.search": "தேடு",
   "action.filter": "வடிகட்டு",
   "action.signOut": "வெளியேறு",
+
+  "dashboard.signOutConfirm.title": "வெளியேற வேண்டுமா?",
+  "dashboard.signOutConfirm.message":
+    "நீங்கள் நிச்சயமாக வெளியேற விரும்புகிறீர்களா? உங்கள் டாஷ்போர்டை அணுக மீண்டும் உள்நுழைய வேண்டும்.",
 };
 
 export const dictionaries: Record<Locale, Dict> = { en, si, ta };

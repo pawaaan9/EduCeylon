@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
@@ -43,8 +43,18 @@ export function DashboardShell({
   const pathname = usePathname() ?? "/";
   const t = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const { user: authUser, profile, signOut: authSignOut } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!signOutConfirmOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSignOutConfirmOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [signOutConfirmOpen]);
 
   // Prefer the logged-in user (Firebase profile) over the static prop.
   const effectiveUser = profile
@@ -57,6 +67,7 @@ export function DashboardShell({
     : user;
 
   async function handleSignOut() {
+    setSignOutConfirmOpen(false);
     try {
       await authSignOut();
     } finally {
@@ -82,7 +93,11 @@ export function DashboardShell({
           </div>
         </div>
         <SidebarNav sections={sections} pathname={pathname} />
-        <UserPanel user={effectiveUser} onSignOut={handleSignOut} />
+        <UserPanel
+          user={effectiveUser}
+          signOutAriaLabel={t("action.signOut")}
+          onRequestSignOut={() => setSignOutConfirmOpen(true)}
+        />
       </aside>
 
       {mobileOpen && (
@@ -109,8 +124,47 @@ export function DashboardShell({
               pathname={pathname}
               onNavigate={() => setMobileOpen(false)}
             />
-            <UserPanel user={effectiveUser} onSignOut={handleSignOut} />
+            <UserPanel
+              user={effectiveUser}
+              signOutAriaLabel={t("action.signOut")}
+              onRequestSignOut={() => setSignOutConfirmOpen(true)}
+            />
           </aside>
+        </div>
+      )}
+
+      {signOutConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            aria-hidden
+            onClick={() => setSignOutConfirmOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sign-out-dialog-title"
+            className="relative w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-xl"
+          >
+            <h2 id="sign-out-dialog-title" className="text-lg font-semibold text-ink-900">
+              {t("dashboard.signOutConfirm.title")}
+            </h2>
+            <p className="mt-2 text-sm text-ink-600 leading-relaxed">
+              {t("dashboard.signOutConfirm.message")}
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="btn btn-secondary w-full sm:w-auto"
+                onClick={() => setSignOutConfirmOpen(false)}
+              >
+                {t("action.cancel")}
+              </button>
+              <button type="button" className="btn btn-primary w-full sm:w-auto" onClick={handleSignOut}>
+                {t("action.signOut")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -227,10 +281,12 @@ function SidebarNav({
 
 function UserPanel({
   user,
-  onSignOut,
+  signOutAriaLabel,
+  onRequestSignOut,
 }: {
   user: { name: string; email: string };
-  onSignOut: () => void;
+  signOutAriaLabel: string;
+  onRequestSignOut: () => void;
 }) {
   return (
     <div className="border-t border-ink-200 p-4">
@@ -242,9 +298,9 @@ function UserPanel({
         </div>
         <button
           type="button"
-          onClick={onSignOut}
+          onClick={onRequestSignOut}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-500 hover:bg-white hover:text-ink-900"
-          aria-label="Sign out"
+          aria-label={signOutAriaLabel}
         >
           <LogoutIcon className="h-4 w-4" />
         </button>
