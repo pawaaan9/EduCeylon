@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { GradientHeader } from "@/components/GradientHeader";
 import { PlusIcon, StarIcon } from "@/components/icons";
-import { COURSES, getCoursesByLecturer } from "@/lib/data/mock";
+import { getCoursesByLecturer } from "@/lib/data/mock";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const LKR = new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", maximumFractionDigits: 0 });
 
 export default function LecturerCoursesPage() {
   const { t, locale } = useI18n();
-  const myCourses = getCoursesByLecturer("lec-1").concat(COURSES[6]!);
+  const myCourses = getCoursesByLecturer("lec-1");
   return (
     <>
       <GradientHeader

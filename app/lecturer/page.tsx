@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { GradientHeader } from "@/components/GradientHeader";
+import { LecturerOnboardingBanner } from "@/components/LecturerOnboardingBanner";
 import { StatCard } from "@/components/StatCard";
 import {
   ArrowRightIcon,
@@ -13,8 +14,10 @@ import {
   UsersIcon,
 } from "@/components/icons";
 import { Avatar } from "@/components/Avatar";
-import { COURSES, getCoursesByLecturer } from "@/lib/data/mock";
+import { getCoursesByLecturer } from "@/lib/data/mock";
+import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { firstName, resolveDisplayName } from "@/lib/user/display-name";
 
 const LKR = new Intl.NumberFormat("en-LK", {
   style: "currency",
@@ -24,19 +27,23 @@ const LKR = new Intl.NumberFormat("en-LK", {
 
 export default function LecturerDashboardPage() {
   const { t, locale } = useI18n();
+  const { user, profile } = useAuth();
   const myCourses = getCoursesByLecturer("lec-1");
+  const greetingName = firstName(resolveDisplayName(profile, user));
 
   return (
     <>
       <GradientHeader
-        title={`${t("dashboard.welcome")}, Ishara`}
-        subtitle="Here's how your courses are performing this week."
+        title={`${t("dashboard.welcome")}, ${greetingName}`}
+        subtitle={t("lecturer.dashboard.subtitle")}
         actions={
           <Link href="/lecturer/create" className="btn bg-white text-brand-700 hover:bg-white/90">
             <PlusIcon className="h-4 w-4" /> New course
           </Link>
         }
       />
+
+      <LecturerOnboardingBanner />
 
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -129,7 +136,7 @@ export default function LecturerDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
-              {myCourses.concat(COURSES[6]!).map((c) => (
+              {myCourses.map((c) => (
                 <tr key={c.id} className="hover:bg-ink-50 transition-colors">
                   <td className="px-2 py-3">
                     <div className="flex items-center gap-3">

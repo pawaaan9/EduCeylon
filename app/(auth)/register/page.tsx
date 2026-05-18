@@ -32,17 +32,25 @@ function RegisterForm() {
   const [role, setRole] = useState<Role>(initial);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isLecturer = role === "lecturer";
 
   async function handleGoogleSignUp() {
     setError(null);
     setGoogleSubmitting(true);
     try {
       const { profile } = await signInWithGoogle({ requestedRole: role });
-      router.push(dashboardPathForRole(profile.role));
+      router.push(
+        profile.role === "lecturer"
+          ? "/lecturer/onboarding"
+          : dashboardPathForRole(profile.role),
+      );
     } catch (err) {
       setError(describeAuthError(err));
     } finally {
@@ -50,13 +58,41 @@ function RegisterForm() {
     }
   }
 
+  function validate(): string | null {
+    if (isLecturer && password !== confirmPassword) {
+      return t("auth.error.passwordMismatch");
+    }
+    if (password.length < 6) {
+      return t("auth.error.weakPassword");
+    }
+    if (isLecturer && !/^[+\d][\d\s\-()]{6,}$/.test(phone.trim())) {
+      return t("auth.error.invalidPhone");
+    }
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const localError = validate();
+    if (localError) {
+      setError(localError);
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
-      const { profile } = await signUpWithEmail({ name, email, password, role });
-      router.push(dashboardPathForRole(profile.role));
+      const { profile } = await signUpWithEmail({
+        name,
+        email,
+        password,
+        role,
+        phone: isLecturer ? phone : undefined,
+      });
+      router.push(
+        profile.role === "lecturer"
+          ? "/lecturer/onboarding"
+          : dashboardPathForRole(profile.role),
+      );
     } catch (err) {
       setError(describeAuthError(err));
     } finally {
@@ -106,7 +142,7 @@ function RegisterForm() {
           <span className="w-full border-t border-ink-200" />
         </div>
         <div className="relative flex justify-center">
-          <span className="bg-ink-50 px-3 text-xs font-medium uppercase tracking-wide text-ink-400">
+          <span className="bg-white px-3 text-xs font-medium uppercase tracking-wide text-ink-400 lg:bg-white">
             {t("auth.or")}
           </span>
         </div>
@@ -139,6 +175,17 @@ function RegisterForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
+        {isLecturer && (
+          <Field
+            label={t("auth.phone")}
+            type="tel"
+            placeholder="+94 7X XXX XXXX"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
+        )}
         <PasswordField
           label={t("auth.password")}
           placeholder="••••••••"
@@ -148,6 +195,17 @@ function RegisterForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        {isLecturer && (
+          <PasswordField
+            label={t("auth.confirmPassword")}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            minLength={6}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        )}
 
         <button
           type="submit"

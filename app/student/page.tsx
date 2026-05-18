@@ -13,7 +13,9 @@ import {
   ArrowRightIcon,
   CalendarIcon,
 } from "@/components/icons";
+import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { firstName, resolveDisplayName } from "@/lib/user/display-name";
 import { COURSES, LIVE_SESSIONS } from "@/lib/data/mock";
 import { formatLiveSessionStart } from "@/lib/format-live-session-start";
 
@@ -22,11 +24,13 @@ const RECOMMENDED = [COURSES[5], COURSES[4], COURSES[7]];
 
 export default function StudentDashboardPage() {
   const { t, locale } = useI18n();
+  const { user, profile } = useAuth();
+  const greetingName = firstName(resolveDisplayName(profile, user));
 
   return (
     <>
       <GradientHeader
-        title={`${t("dashboard.welcome")}, Pawan 👋`}
+        title={`${t("dashboard.welcome")}, ${greetingName} 👋`}
         subtitle={t("dashboard.subtitle")}
         actions={
           <Link href="/courses" className="btn bg-white text-brand-700 hover:bg-white/90">

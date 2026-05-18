@@ -16,6 +16,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  type DocumentReference,
 } from "firebase/firestore";
 import { getFirebase, SUPERADMIN_EMAIL } from "./client";
 
@@ -30,34 +31,88 @@ export type AppUserProfile = {
 };
 
 /**
- * Two-collection layout in Firestore:
- *  - admins/{uid} → platform staff (role is implicitly "admin")
- *  - users/{uid}  → students & lecturers (role explicit on the doc)
+ * Three-collection layout in Firestore (one collection per role):
+ *  - admins/{uid}     → platform staff
+ *  - lecturers/{uid}  → lecturers
+ *  - students/{uid}   → students
+ *
+ * Legacy `users/{uid}` docs are still readable as a fallback so existing test
+ * accounts keep working; new writes go to the per-role collection only.
  */
-const ADMINS_COLLECTION = "admins";
-const USERS_COLLECTION = "users";
+export const ADMINS_COLLECTION = "admins";
+export const LECTURERS_COLLECTION = "lecturers";
+export const STUDENTS_COLLECTION = "students";
+const LEGACY_USERS_COLLECTION = "users";
+
+function collectionForRole(role: AppRole): string {
+  if (role === "admin") return ADMINS_COLLECTION;
+  if (role === "lecturer") return LECTURERS_COLLECTION;
+  return STUDENTS_COLLECTION;
+}
 
 function isSuperadminEmail(email: string | null | undefined): boolean {
   return !!email && email.toLowerCase() === SUPERADMIN_EMAIL;
 }
 
-/**
- * Read the profile for a Firebase user. Admins are stored in `admins/{uid}`,
- * everyone else lives in `users/{uid}`.
- */
-export async function getUserProfile(uid: string): Promise<AppUserProfile | null> {
+async function readProfileFromCollection(
+  ref: DocumentReference,
+  fallbackRole: AppRole,
+): Promise<AppUserProfile | null> {
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = snap.data() as Partial<AppUserProfile>;
+  return {
+    uid: ref.id,
+    email: data.email ?? "",
+    name: data.name ?? "",
+    role: (data.role as AppRole | undefined) ?? fallbackRole,
+    createdAt: data.createdAt,
+  };
+}
+
+/** Read a profile by checking each role-specific collection in turn. */
+export async function getUserProfile(
+  uid: string,
+): Promise<AppUserProfile | null> {
   const { db } = getFirebase();
-  const adminSnap = await getDoc(doc(db, ADMINS_COLLECTION, uid));
-  if (adminSnap.exists()) {
-    return { ...(adminSnap.data() as AppUserProfile), role: "admin" };
+
+  const admin = await readProfileFromCollection(
+    doc(db, ADMINS_COLLECTION, uid),
+    "admin",
+  );
+  if (admin) return { ...admin, role: "admin" };
+
+  const lecturer = await readProfileFromCollection(
+    doc(db, LECTURERS_COLLECTION, uid),
+    "lecturer",
+  );
+  if (lecturer) return { ...lecturer, role: "lecturer" };
+
+  const student = await readProfileFromCollection(
+    doc(db, STUDENTS_COLLECTION, uid),
+    "student",
+  );
+  if (student) return { ...student, role: "student" };
+
+  // Backward compatibility: legacy users/{uid} doc (pre-split schema).
+  const legacy = await getDoc(doc(db, LEGACY_USERS_COLLECTION, uid));
+  if (legacy.exists()) {
+    const data = legacy.data() as Partial<AppUserProfile>;
+    const role =
+      data.role === "lecturer"
+        ? "lecturer"
+        : data.role === "admin"
+        ? "student" // legacy guard — admins live elsewhere
+        : "student";
+    return {
+      uid,
+      email: data.email ?? "",
+      name: data.name ?? "",
+      role,
+      createdAt: data.createdAt,
+    };
   }
-  const userSnap = await getDoc(doc(db, USERS_COLLECTION, uid));
-  if (userSnap.exists()) {
-    const data = userSnap.data() as AppUserProfile;
-    // Defensive: someone could have written role="admin" to users/{uid}
-    // before we moved admins into their own collection. Treat as student.
-    return { ...data, role: data.role === "admin" ? "student" : data.role };
-  }
+
   return null;
 }
 
@@ -69,63 +124,100 @@ function resolveBootstrapRole(email: string, requestedRole?: AppRole): AppRole {
 }
 
 /**
- * Ensure a Firestore profile exists for the user.
- *  - Superadmin email → `admins/{uid}` (role "admin"), self-heals from `users/{uid}`.
- *  - Everyone else    → `users/{uid}` with the requested role (defaults to student).
+ * Ensure a Firestore profile exists for the user in the right per-role
+ * collection. Self-heals legacy `users/{uid}` records into the new layout.
  */
 export async function ensureProfile(
   user: User,
   options?: { requestedRole?: AppRole; name?: string },
 ): Promise<AppUserProfile> {
   const { db } = getFirebase();
-  const adminRef = doc(db, ADMINS_COLLECTION, user.uid);
-  const userRef = doc(db, USERS_COLLECTION, user.uid);
-
   const isAdminEmail = isSuperadminEmail(user.email);
 
-  // 1. Admin lives in `admins/{uid}`.
-  const adminSnap = await getDoc(adminRef);
+  // 1. Already an admin?
+  const adminSnap = await getDoc(doc(db, ADMINS_COLLECTION, user.uid));
   if (adminSnap.exists()) {
-    return { ...(adminSnap.data() as AppUserProfile), role: "admin" };
-  }
-
-  // 2. If the email is the superadmin, migrate any stale `users/{uid}` doc
-  //    into `admins/{uid}` and remove the old record.
-  if (isAdminEmail) {
-    const staleSnap = await getDoc(userRef);
-    const baseName =
-      options?.name ??
-      (staleSnap.exists() ? (staleSnap.data() as AppUserProfile).name : null) ??
-      user.displayName ??
-      user.email?.split("@")[0] ??
-      "Admin";
-
-    const adminProfile: AppUserProfile = {
+    const data = adminSnap.data() as Partial<AppUserProfile>;
+    return {
       uid: user.uid,
-      email: user.email ?? "",
-      name: baseName,
+      email: data.email ?? user.email ?? "",
+      name: data.name ?? "Admin",
       role: "admin",
-      createdAt: serverTimestamp(),
+      createdAt: data.createdAt,
     };
-    await setDoc(adminRef, adminProfile);
-    if (staleSnap.exists()) {
-      try {
-        await deleteDoc(userRef);
-      } catch {
-        // non-fatal — rules may forbid delete; the FE ignores users/{uid} for this email anyway.
-      }
+  }
+
+  // 2. Already a lecturer?
+  const lecturerSnap = await getDoc(doc(db, LECTURERS_COLLECTION, user.uid));
+  if (lecturerSnap.exists()) {
+    const data = lecturerSnap.data() as Partial<AppUserProfile>;
+    return {
+      uid: user.uid,
+      email: data.email ?? user.email ?? "",
+      name: data.name ?? user.displayName ?? "Lecturer",
+      role: "lecturer",
+      createdAt: data.createdAt,
+    };
+  }
+
+  // 3. Already a student?
+  const studentSnap = await getDoc(doc(db, STUDENTS_COLLECTION, user.uid));
+  if (studentSnap.exists()) {
+    const data = studentSnap.data() as Partial<AppUserProfile>;
+    return {
+      uid: user.uid,
+      email: data.email ?? user.email ?? "",
+      name: data.name ?? user.displayName ?? "Student",
+      role: "student",
+      createdAt: data.createdAt,
+    };
+  }
+
+  // 4. Legacy users/{uid} doc — migrate into the correct per-role collection.
+  const legacyRef = doc(db, LEGACY_USERS_COLLECTION, user.uid);
+  const legacySnap = await getDoc(legacyRef);
+  if (legacySnap.exists()) {
+    const data = legacySnap.data() as Partial<AppUserProfile> & {
+      phone?: string;
+    };
+    const legacyRole: AppRole =
+      data.role === "lecturer" || data.role === "student"
+        ? (data.role as AppRole)
+        : "student";
+    const targetRole: AppRole = isAdminEmail ? "admin" : legacyRole;
+    const targetRef = doc(db, collectionForRole(targetRole), user.uid);
+
+    const migrated: AppUserProfile = {
+      uid: user.uid,
+      email: data.email ?? user.email ?? "",
+      name:
+        data.name ??
+        options?.name ??
+        user.displayName ??
+        user.email?.split("@")[0] ??
+        "User",
+      role: targetRole,
+      createdAt: data.createdAt ?? serverTimestamp(),
+    };
+    await setDoc(
+      targetRef,
+      {
+        ...migrated,
+        ...(data.phone ? { phone: data.phone } : {}),
+      },
+      { merge: true },
+    );
+    try {
+      await deleteDoc(legacyRef);
+    } catch {
+      // non-fatal — Firestore rules may forbid delete; new collection wins.
     }
-    return adminProfile;
+    return migrated;
   }
 
-  // 3. Otherwise the account is a student or lecturer.
-  const existingUser = await getDoc(userRef);
-  if (existingUser.exists()) {
-    const data = existingUser.data() as AppUserProfile;
-    return { ...data, role: data.role === "admin" ? "student" : data.role };
-  }
-
+  // 5. Brand new account — write into the right per-role collection.
   const role = resolveBootstrapRole(user.email ?? "", options?.requestedRole);
+  const targetRef = doc(db, collectionForRole(role), user.uid);
   const profile: AppUserProfile = {
     uid: user.uid,
     email: user.email ?? "",
@@ -133,8 +225,18 @@ export async function ensureProfile(
     role,
     createdAt: serverTimestamp(),
   };
-  await setDoc(userRef, profile);
+  await setDoc(targetRef, profile);
   return profile;
+}
+
+/** Merge a small patch onto the profile in the role's own collection. */
+async function patchRoleProfile(
+  uid: string,
+  role: AppRole,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { db } = getFirebase();
+  await setDoc(doc(db, collectionForRole(role), uid), patch, { merge: true });
 }
 
 /** Sign in with email/password and return the resolved profile. */
@@ -151,6 +253,7 @@ export async function signUpWithEmail(input: {
   email: string;
   password: string;
   role: AppRole;
+  phone?: string;
 }) {
   const { auth } = getFirebase();
   const cred = await createUserWithEmailAndPassword(
@@ -169,6 +272,18 @@ export async function signUpWithEmail(input: {
     requestedRole: input.role,
     name: input.name,
   });
+
+  // Persist phone alongside the role-specific profile (lecturer registration).
+  if (input.phone) {
+    try {
+      await patchRoleProfile(cred.user.uid, profile.role, {
+        phone: input.phone.trim(),
+      });
+    } catch {
+      // non-fatal
+    }
+  }
+
   return { user: cred.user, profile };
 }
 
@@ -231,6 +346,12 @@ export function describeAuthError(err: unknown): string {
     case "auth/account-exists-with-different-credential":
       return "An account already exists with this email using a different sign-in method.";
     default:
+      if (
+        code === "permission-denied" ||
+        (err instanceof Error && /insufficient permissions/i.test(err.message))
+      ) {
+        return "Could not save your profile. Publish the updated Firestore rules (lecturers & students) in Firebase Console.";
+      }
       return err instanceof Error ? err.message : "Something went wrong.";
   }
 }
