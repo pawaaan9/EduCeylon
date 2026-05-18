@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_Sinhala, Noto_Sans_Tamil } from "next/font/google";
+import { Saira, Noto_Sans_Sinhala, Noto_Sans_Tamil } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
+import { AuthProvider } from "@/lib/firebase/AuthProvider";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
+const saira = Saira({
+  variable: "--font-saira",
+  subsets: ["latin", "latin-ext"],
   display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
 });
 
 const sinhala = Noto_Sans_Sinhala({
@@ -62,10 +65,24 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${sinhala.variable} ${tamil.variable} h-full antialiased`}
+      className={`${saira.variable} ${sinhala.variable} ${tamil.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Finlandica+Text:ital,wght@0,100..900;1,100..900&display=swap"
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-        <I18nProvider>{children}</I18nProvider>
+        <AuthProvider>
+          <I18nProvider>{children}</I18nProvider>
+        </AuthProvider>
       </body>
     </html>
   );

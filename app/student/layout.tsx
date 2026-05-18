@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardShell, type NavSection } from "@/components/DashboardShell";
+import { RequireRole } from "@/components/RequireRole";
 import {
   BellIcon,
   BookIcon,
@@ -13,10 +14,7 @@ import {
 } from "@/components/icons";
 import { useT } from "@/lib/i18n/I18nProvider";
 
-const MOCK_USER = {
-  name: "Pawan Dhanapala",
-  email: "pawan@educeylon.lk",
-};
+const FALLBACK_USER = { name: "Student", email: "" };
 
 export default function StudentLayout({
   children,
@@ -56,8 +54,10 @@ export default function StudentLayout({
   ];
 
   return (
-    <DashboardShell role="student" user={MOCK_USER} sections={sections}>
-      {children}
-    </DashboardShell>
+    <RequireRole role="student">
+      <DashboardShell role="student" user={FALLBACK_USER} sections={sections}>
+        {children}
+      </DashboardShell>
+    </RequireRole>
   );
 }

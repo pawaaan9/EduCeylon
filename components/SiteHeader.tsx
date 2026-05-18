@@ -6,10 +6,14 @@ import { Logo } from "./Logo";
 import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { MenuIcon, CloseIcon } from "./icons";
+import { useAuth } from "@/lib/firebase/AuthProvider";
+import { dashboardPathForRole } from "@/lib/firebase/auth";
 
 export function SiteHeader() {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const { profile, loading, signOut } = useAuth();
+  const dashboardHref = profile ? dashboardPathForRole(profile.role) : null;
 
   const links = [
     { href: "/", label: t("nav.home") },
@@ -38,12 +42,25 @@ export function SiteHeader() {
 
         <div className="hidden md:flex items-center gap-2">
           <LanguageSwitcher />
-          <Link href="/login" className="btn btn-ghost">
-            {t("nav.login")}
-          </Link>
-          <Link href="/register" className="btn btn-primary">
-            {t("nav.register")}
-          </Link>
+          {!loading && dashboardHref ? (
+            <>
+              <Link href={dashboardHref} className="btn btn-ghost">
+                {t("nav.dashboard")}
+              </Link>
+              <button onClick={() => signOut()} className="btn btn-primary">
+                {t("action.signOut")}
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="btn btn-ghost">
+                {t("nav.login")}
+              </Link>
+              <Link href="/register" className="btn btn-primary">
+                {t("nav.register")}
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -86,12 +103,35 @@ export function SiteHeader() {
             </nav>
             <div className="mt-2 flex flex-col gap-2">
               <LanguageSwitcher />
-              <Link href="/login" className="btn btn-secondary" onClick={() => setOpen(false)}>
-                {t("nav.login")}
-              </Link>
-              <Link href="/register" className="btn btn-primary" onClick={() => setOpen(false)}>
-                {t("nav.register")}
-              </Link>
+              {!loading && dashboardHref ? (
+                <>
+                  <Link
+                    href={dashboardHref}
+                    className="btn btn-secondary"
+                    onClick={() => setOpen(false)}
+                  >
+                    {t("nav.dashboard")}
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      signOut();
+                    }}
+                    className="btn btn-primary"
+                  >
+                    {t("action.signOut")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="btn btn-secondary" onClick={() => setOpen(false)}>
+                    {t("nav.login")}
+                  </Link>
+                  <Link href="/register" className="btn btn-primary" onClick={() => setOpen(false)}>
+                    {t("nav.register")}
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -5,8 +5,14 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { GraduationIcon, MicIcon } from "@/components/icons";
+import {
+  dashboardPathForRole,
+  describeAuthError,
+  signUpWithEmail,
+  type AppRole,
+} from "@/lib/firebase/auth";
 
-type Role = "student" | "lecturer";
+type Role = Extract<AppRole, "student" | "lecturer">;
 
 export default function RegisterPage() {
   return (
@@ -20,8 +26,27 @@ function RegisterForm() {
   const t = useT();
   const router = useRouter();
   const params = useSearchParams();
-  const initial = (params.get("role") === "lecturer" ? "lecturer" : "student") as Role;
+  const initial: Role = params.get("role") === "lecturer" ? "lecturer" : "student";
   const [role, setRole] = useState<Role>(initial);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const { profile } = await signUpWithEmail({ name, email, password, role });
+      router.push(dashboardPathForRole(profile.role));
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="fade-up">
@@ -50,26 +75,60 @@ function RegisterForm() {
         </div>
       </div>
 
-      <form
-        className="mt-6 flex flex-col gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          router.push(role === "lecturer" ? "/lecturer" : "/student");
-        }}
-      >
-        <Field label={t("auth.name")} placeholder="Pawan Dhanapala" required />
-        <Field label={t("auth.email")} type="email" placeholder="you@example.com" required />
-        <Field label={t("auth.password")} type="password" placeholder="••••••••" required />
+      <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
+        <Field
+          label={t("auth.name")}
+          placeholder="Pawan Dhanapala"
+          autoComplete="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Field
+          label={t("auth.email")}
+          type="email"
+          placeholder="you@example.com"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Field
+          label={t("auth.password")}
+          type="password"
+          placeholder="••••••••"
+          autoComplete="new-password"
+          minLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
-        <button type="submit" className="btn btn-primary mt-2 justify-center">
-          {t("auth.submit.register")}
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          >
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="btn btn-primary mt-2 justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {submitting ? "Creating account…" : t("auth.submit.register")}
         </button>
         <p className="text-xs text-ink-500 text-center">{t("auth.terms")}</p>
       </form>
 
       <p className="mt-8 text-center text-sm text-ink-600">
         {t("auth.haveAccount")}{" "}
-        <Link href="/login" className="font-semibold text-brand-700 hover:text-brand-900">
+        <Link
+          href="/login"
+          className="font-semibold text-brand-700 hover:text-brand-900"
+        >
           {t("nav.login")}
         </Link>
       </p>

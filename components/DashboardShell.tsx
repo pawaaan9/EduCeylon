@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
@@ -14,6 +14,7 @@ import {
   SearchIcon,
 } from "./icons";
 import { useT } from "@/lib/i18n/I18nProvider";
+import { useAuth } from "@/lib/firebase/AuthProvider";
 
 export type NavItem = {
   href: string;
@@ -42,6 +43,26 @@ export function DashboardShell({
   const pathname = usePathname() ?? "/";
   const t = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user: authUser, profile, signOut: authSignOut } = useAuth();
+  const router = useRouter();
+
+  // Prefer the logged-in user (Firebase profile) over the static prop.
+  const effectiveUser = profile
+    ? { name: profile.name, email: profile.email }
+    : authUser
+    ? {
+        name: authUser.displayName ?? authUser.email?.split("@")[0] ?? "User",
+        email: authUser.email ?? "",
+      }
+    : user;
+
+  async function handleSignOut() {
+    try {
+      await authSignOut();
+    } finally {
+      router.push("/login");
+    }
+  }
 
   const roleLabel = {
     student: "Student Portal",
@@ -61,7 +82,7 @@ export function DashboardShell({
           </div>
         </div>
         <SidebarNav sections={sections} pathname={pathname} />
-        <UserPanel user={user} />
+        <UserPanel user={effectiveUser} onSignOut={handleSignOut} />
       </aside>
 
       {mobileOpen && (
@@ -88,7 +109,7 @@ export function DashboardShell({
               pathname={pathname}
               onNavigate={() => setMobileOpen(false)}
             />
-            <UserPanel user={user} />
+            <UserPanel user={effectiveUser} onSignOut={handleSignOut} />
           </aside>
         </div>
       )}
@@ -143,13 +164,13 @@ export function DashboardShell({
                 <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500" />
               </button>
               <div className="hidden sm:flex items-center gap-2 pl-2 pr-3 h-10 rounded-xl border border-ink-200 bg-white">
-                <Avatar name={user.name} size={28} />
+                <Avatar name={effectiveUser.name} size={28} />
                 <div className="leading-tight">
                   <div className="text-xs font-semibold text-ink-900 truncate max-w-[120px]">
-                    {user.name}
+                    {effectiveUser.name}
                   </div>
                   <div className="text-[10px] text-ink-500 truncate max-w-[120px]">
-                    {user.email}
+                    {effectiveUser.email}
                   </div>
                 </div>
               </div>
@@ -204,7 +225,13 @@ function SidebarNav({
   );
 }
 
-function UserPanel({ user }: { user: { name: string; email: string } }) {
+function UserPanel({
+  user,
+  onSignOut,
+}: {
+  user: { name: string; email: string };
+  onSignOut: () => void;
+}) {
   return (
     <div className="border-t border-ink-200 p-4">
       <div className="flex items-center gap-3 p-2 rounded-xl bg-ink-50">
@@ -213,13 +240,14 @@ function UserPanel({ user }: { user: { name: string; email: string } }) {
           <div className="text-sm font-semibold text-ink-900 truncate">{user.name}</div>
           <div className="text-xs text-ink-500 truncate">{user.email}</div>
         </div>
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={onSignOut}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-500 hover:bg-white hover:text-ink-900"
           aria-label="Sign out"
         >
           <LogoutIcon className="h-4 w-4" />
-        </Link>
+        </button>
       </div>
     </div>
   );
