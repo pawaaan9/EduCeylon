@@ -3,10 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireRole } from "@/lib/server/auth-middleware";
 import { getAdmin } from "@/lib/server/firebase-admin";
 import { LECTURER_PROFILES } from "@/lib/server/lecturer-profile";
-import type {
-  LecturerApprovalStatus,
-  LecturerProfile,
-} from "@/lib/server/types";
+import type { LecturerApprovalStatus } from "@/lib/server/types";
 
 export const runtime = "nodejs";
 
@@ -48,12 +45,20 @@ export async function POST(
       );
     }
 
-    const update: Partial<LecturerProfile> = {
+    const update: Record<string, unknown> = {
       approvalStatus: status,
-      rejectionReason: status === "rejected" ? reason : undefined,
-      [status === "approved" ? "approvedAt" : "rejectedAt"]:
-        FieldValue.serverTimestamp(),
     };
+
+    if (status === "approved") {
+      update.approvedAt = FieldValue.serverTimestamp();
+      update.rejectedAt = FieldValue.delete();
+      update.rejectionReason = FieldValue.delete();
+    } else {
+      update.rejectedAt = FieldValue.serverTimestamp();
+      update.approvedAt = FieldValue.delete();
+      update.rejectionReason = reason || FieldValue.delete();
+    }
+
     await ref.set(update, { merge: true });
 
     // Mirror on the lecturer record so simple checks don't need a join.
@@ -62,7 +67,7 @@ export async function POST(
       .doc(uid)
       .set({ lecturerApprovalStatus: status }, { merge: true });
 
-    return NextResponse.json({ data: { uid, ...update } });
+    return NextResponse.json({ data: { uid, approvalStatus: status } });
   } catch (err) {
     const detail = err instanceof Error ? err.message : "unknown";
     return NextResponse.json(

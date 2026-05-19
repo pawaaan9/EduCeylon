@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightIcon,
@@ -12,16 +12,34 @@ import {
 } from "@/components/icons";
 import { GradientHeader } from "@/components/GradientHeader";
 import { LecturerImageUpload } from "@/components/LecturerImageUpload";
-import { QualificationsInput } from "@/components/QualificationsInput";
+import {
+  QualificationsInput,
+  type QualificationsInputHandle,
+} from "@/components/QualificationsInput";
+import { SubCategoriesInput } from "@/components/SubCategoriesInput";
+import { DailyAvailabilitySchedule } from "@/components/DailyAvailabilitySchedule";
+import { formatTeachingScheduleSummary } from "@/lib/onboarding/schedule-display";
+import {
+  resolveSchedule,
+  syncLegacyAvailability,
+  type AvailableSchedule,
+} from "@/lib/onboarding/schedule";
 import { useAuth } from "@/lib/firebase/AuthProvider";
+import { formatLanguagesList } from "@/lib/i18n/language-labels";
 import { useI18n, useT } from "@/lib/i18n/I18nProvider";
 import {
   evaluateMyLecturerProfile,
-  fetchMyLecturerProfile,
   saveMyLecturerProfile,
   submitMyLecturerProfile,
   uploadLecturerAsset,
 } from "@/lib/api/lecturers";
+import { useLecturerProfile } from "@/lib/lecturer/LecturerProfileProvider";
+import {
+  getOnboardingMeta,
+  getProfessionalStepMissing,
+  isProfessionalStepComplete,
+  type QualificationDraft,
+} from "@/lib/onboarding/steps";
 import {
   emptyLecturerProfile,
   type LecturerProfile,
@@ -41,6 +59,7 @@ import {
   DAY_OPTIONS,
   LANGUAGE_OPTIONS,
   LECTURER_TYPES,
+  MIN_BIO_LENGTH,
   TEACHING_LEVELS,
   TEACHING_METHODS,
 } from "@/app/lecturer/onboarding/constants";
@@ -68,16 +87,25 @@ export default function LecturerOnboardingPage() {
   const router = useRouter();
   const t = useT();
   const { user, profile: userProfile, loading: authLoading } = useAuth();
+  const lecturerCtx = useLecturerProfile();
   const [profile, setProfile] = useState<LecturerProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingMeta | null>(null);
+  const syncedFromServer = useRef(false);
+  const qualificationsRef = useRef<QualificationsInputHandle>(null);
+  const [qualificationDraft, setQualificationDraft] =
+    useState<QualificationDraft>({
+      title: "",
+      institute: "",
+      year: "",
+    });
 
-  useEffect(() => {
+  /** Seed the form before paint so users are not stuck on a spinner while /api/lecturers/me loads. */
+  useLayoutEffect(() => {
     if (authLoading) return;
     if (!user) {
       router.replace("/login?next=/lecturer/onboarding");
@@ -87,37 +115,41 @@ export default function LecturerOnboardingPage() {
       router.replace("/");
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await user.getIdToken();
-        const data = await fetchMyLecturerProfile(token);
-        if (cancelled) return;
-        const base = data?.profile ?? emptyLecturerProfile(user.uid);
-        if (!base.displayName && userProfile?.name) base.displayName = userProfile.name;
-        if (!base.email && userProfile?.email) base.email = userProfile.email;
-        setProfile(base);
-        setOnboarding(data?.onboarding ?? null);
-        if (base.approvalStatus === "pending" || base.approvalStatus === "approved") {
-          setSubmitted(true);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Could not load profile. Is the API server running?",
-          );
-          setProfile(emptyLecturerProfile(user.uid));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setProfile((prev) => {
+      if (prev) return prev;
+      const optimistic = emptyLecturerProfile(user.uid);
+      if (userProfile?.name) optimistic.displayName = userProfile.name;
+      if (userProfile?.email) optimistic.email = userProfile.email;
+      return optimistic;
+    });
   }, [authLoading, user, userProfile, router]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (userProfile && userProfile.role !== "lecturer") return;
+    if (lecturerCtx.loading || syncedFromServer.current) return;
+
+    syncedFromServer.current = true;
+    const base = lecturerCtx.profile ?? emptyLecturerProfile(user.uid);
+    if (!base.displayName && userProfile?.name) base.displayName = userProfile.name;
+    if (!base.email && userProfile?.email) base.email = userProfile.email;
+    setProfile({ ...base });
+    setOnboarding(lecturerCtx.onboarding);
+    if (
+      base.approvalStatus === "pending" ||
+      base.approvalStatus === "approved"
+    ) {
+      setSubmitted(true);
+    }
+    setError(null);
+  }, [
+    authLoading,
+    user,
+    userProfile,
+    lecturerCtx.profile,
+    lecturerCtx.onboarding,
+    lecturerCtx.loading,
+  ]);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -130,18 +162,42 @@ export default function LecturerOnboardingPage() {
       } catch {
         // keep last known onboarding meta
       }
-    }, 400);
+    }, 1200);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [profile, user]);
 
-  const completion = onboarding?.completion ?? profile?.completion ?? 0;
+  const localOnboarding = useMemo(
+    () => (profile ? getOnboardingMeta(profile) : null),
+    [profile],
+  );
+
+  const completion =
+    onboarding?.completion ??
+    localOnboarding?.completion ??
+    profile?.completion ??
+    0;
 
   const step = STEPS[stepIndex]!;
-  const maxReachable = onboarding?.maxReachableStepIndex ?? 0;
-  const currentStepComplete = onboarding?.steps[step.key] ?? false;
+  const maxReachable =
+    localOnboarding?.maxReachableStepIndex ??
+    onboarding?.maxReachableStepIndex ??
+    0;
+  const currentStepComplete = useMemo(() => {
+    if (!profile) return false;
+    if (step.key === "professional") {
+      return isProfessionalStepComplete(profile, qualificationDraft);
+    }
+    return localOnboarding?.steps[step.key] ?? onboarding?.steps[step.key] ?? false;
+  }, [
+    profile,
+    step.key,
+    qualificationDraft,
+    localOnboarding,
+    onboarding?.steps,
+  ]);
 
   function goToStep(index: number) {
     if (!profile || index < 0 || index >= STEPS.length) return;
@@ -157,10 +213,10 @@ export default function LecturerOnboardingPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const { profile: next, onboarding: nextOnboarding } =
-        await saveMyLecturerProfile(token, patch);
-      setProfile(next);
-      setOnboarding(nextOnboarding);
+      const result = await saveMyLecturerProfile(token, patch);
+      setProfile(result.profile);
+      setOnboarding(result.onboarding);
+      lecturerCtx.setFromResponse(result);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
@@ -170,14 +226,43 @@ export default function LecturerOnboardingPage() {
     }
   }
 
+  function profileWithPendingQualification(base: LecturerProfile): LecturerProfile {
+    if (step.key !== "professional" || !qualificationsRef.current) {
+      return base;
+    }
+    const merged = qualificationsRef.current.commitDraft();
+    if (!merged) return base;
+    return { ...base, qualifications: merged };
+  }
+
   async function handleNext() {
     if (!profile) return;
-    if (!currentStepComplete) {
+
+    const nextProfile = profileWithPendingQualification(profile);
+    if (nextProfile !== profile) {
+      setProfile(nextProfile);
+    }
+
+    const stepComplete = getOnboardingMeta(nextProfile).steps[step.key];
+    if (!stepComplete) {
+      if (step.key === "professional") {
+        const missing = getProfessionalStepMissing(
+          nextProfile,
+          t,
+          qualificationDraft,
+        );
+        if (missing.length > 0) {
+          setStepError(
+            `${t("onboard.validation.fillRequired")}: ${missing.join(", ")}`,
+          );
+          return;
+        }
+      }
       setStepError(t("onboard.validation.fillRequired"));
       return;
     }
     setStepError(null);
-    const saved = await save(profile);
+    const saved = await save(nextProfile);
     if (!saved) return;
     goToStep(Math.min(stepIndex + 1, STEPS.length - 1));
   }
@@ -188,10 +273,10 @@ export default function LecturerOnboardingPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const { profile: next, onboarding: nextOnboarding } =
-        await submitMyLecturerProfile(token);
-      setProfile(next);
-      setOnboarding(nextOnboarding);
+      const result = await submitMyLecturerProfile(token);
+      setProfile(result.profile);
+      setOnboarding(result.onboarding);
+      lecturerCtx.setFromResponse(result);
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not submit");
@@ -200,7 +285,7 @@ export default function LecturerOnboardingPage() {
     }
   }
 
-  if (authLoading || loading || !profile) {
+  if (authLoading || !profile) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-1 w-40 overflow-hidden rounded-full bg-ink-200">
@@ -318,6 +403,8 @@ export default function LecturerOnboardingPage() {
         {step.key === "professional" && (
           <ProfessionalStep
             value={profile}
+            qualificationsRef={qualificationsRef}
+            onQualificationDraftChange={setQualificationDraft}
             onChange={(patch) => setProfile((p) => (p ? { ...p, ...patch } : p))}
           />
         )}
@@ -425,6 +512,7 @@ function BasicStep({
         onChange={(url) => void onPersist({ photoURL: url })}
         previewAspect="square"
         cropPreset="profile"
+        priority
       />
       <LecturerImageUpload
         uid={uid}
@@ -435,6 +523,7 @@ function BasicStep({
         onChange={(url) => void onPersist({ coverURL: url })}
         previewAspect="cover"
         cropPreset="cover"
+        priority
       />
       <Field
         label={t("onboard.basic.displayName")}
@@ -448,6 +537,11 @@ function BasicStep({
         onChange={(e) => onChange({ bio: e.target.value })}
         rows={4}
         helper={t("onboard.basic.bio.helper")}
+        minChars={MIN_BIO_LENGTH}
+        minCharsRemainingLabel={(count) =>
+          t("onboard.basic.bio.charsRemaining").replace("{count}", String(count))
+        }
+        minCharsMetLabel={t("onboard.basic.bio.minMet")}
       />
       <LocationSelects value={value} onChange={onChange} />
       <CheckboxGroup
@@ -466,9 +560,13 @@ function BasicStep({
 function ProfessionalStep({
   value,
   onChange,
+  qualificationsRef,
+  onQualificationDraftChange,
 }: {
   value: LecturerProfile;
   onChange: (patch: Partial<LecturerProfile>) => void;
+  qualificationsRef: React.RefObject<QualificationsInputHandle | null>;
+  onQualificationDraftChange: (draft: QualificationDraft) => void;
 }) {
   const t = useT();
   return (
@@ -479,7 +577,7 @@ function ProfessionalStep({
         value={value.mainSubject ?? ""}
         onChange={(e) => onChange({ mainSubject: e.target.value })}
       />
-      <TagInput
+      <SubCategoriesInput
         label={t("onboard.prof.subCategories")}
         helper={t("onboard.prof.subCategories.helper")}
         values={value.subCategories}
@@ -510,10 +608,12 @@ function ProfessionalStep({
         }}
       />
       <QualificationsInput
+        ref={qualificationsRef}
         label={t("onboard.prof.qualifications")}
         helper={t("onboard.prof.qualifications.helper")}
         values={value.qualifications}
         onChange={(qualifications) => onChange({ qualifications })}
+        onDraftChange={onQualificationDraftChange}
       />
       <RadioGroup
         label={t("onboard.prof.type")}
@@ -536,6 +636,23 @@ function TeachingStep({
   onChange: (patch: Partial<LecturerProfile>) => void;
 }) {
   const t = useT();
+
+  const schedule = resolveSchedule(
+    value.availableDays,
+    value.availableSchedule,
+    value,
+  );
+
+  function applySchedule(
+    nextSchedule: AvailableSchedule,
+    days = value.availableDays,
+  ) {
+    onChange({
+      availableSchedule: nextSchedule,
+      ...syncLegacyAvailability(nextSchedule, days),
+    });
+  }
+
   return (
     <div className="grid gap-5">
       <CheckboxGroup
@@ -554,22 +671,24 @@ function TeachingStep({
           label: t(`onboard.days.${d}`),
         }))}
         values={value.availableDays}
-        onChange={(availableDays) => onChange({ availableDays })}
+        onChange={(availableDays) => {
+          const nextSchedule = resolveSchedule(
+            availableDays,
+            value.availableSchedule,
+            value,
+          );
+          onChange({
+            availableDays,
+            availableSchedule: nextSchedule,
+            ...syncLegacyAvailability(nextSchedule, availableDays),
+          });
+        }}
       />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label={t("onboard.teaching.from")}
-          type="time"
-          value={value.availableFrom ?? ""}
-          onChange={(e) => onChange({ availableFrom: e.target.value })}
-        />
-        <Field
-          label={t("onboard.teaching.to")}
-          type="time"
-          value={value.availableTo ?? ""}
-          onChange={(e) => onChange({ availableTo: e.target.value })}
-        />
-      </div>
+      <DailyAvailabilitySchedule
+        days={value.availableDays}
+        schedule={schedule}
+        onChange={applySchedule}
+      />
     </div>
   );
 }
@@ -726,15 +845,21 @@ function ReviewStep({
           ["onboard.review.mainSubject", value.mainSubject],
           [
             "onboard.review.languages",
-            value.languages.map((l) => l.toUpperCase()).join(", "),
+            formatLanguagesList(value.languages),
           ],
           [
             "onboard.review.levels",
-            value.teachingLevels.map((l) => l.toUpperCase()).join(", "),
+            value.teachingLevels.map((l) => t(`onboard.levels.${l}`)).join(", "),
           ],
           [
             "onboard.review.methods",
             value.teachingMethods.join(", "),
+          ],
+          [
+            "onboard.review.schedule",
+            formatTeachingScheduleSummary(value, (day) =>
+              t(`onboard.days.${day}`),
+            ),
           ],
           ["onboard.review.experience", value.experienceYears?.toString()],
           [
@@ -878,11 +1003,24 @@ function Field({
 function TextArea({
   label,
   helper,
+  minChars,
+  minCharsRemainingLabel,
+  minCharsMetLabel,
+  value,
   ...rest
 }: {
   label: string;
   helper?: string;
+  minChars?: number;
+  minCharsRemainingLabel?: (remaining: number) => string;
+  minCharsMetLabel?: string;
 } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const text = typeof value === "string" ? value : String(value ?? "");
+  const length = text.trim().length;
+  const remaining =
+    minChars !== undefined ? Math.max(0, minChars - length) : 0;
+  const minMet = minChars !== undefined && remaining === 0;
+
   return (
     <label className="block">
       <span className="text-sm font-medium text-ink-700 mb-1.5 block">
@@ -890,10 +1028,56 @@ function TextArea({
       </span>
       <textarea
         className="w-full rounded-xl border border-ink-200 bg-white p-3 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)]"
+        value={value}
         {...rest}
       />
-      {helper && <p className="mt-1 text-xs text-ink-500">{helper}</p>}
+      <MinCharsFooter
+        helper={helper}
+        minChars={minChars}
+        remaining={remaining}
+        minMet={minMet}
+        minCharsRemainingLabel={minCharsRemainingLabel}
+        minCharsMetLabel={minCharsMetLabel}
+      />
     </label>
+  );
+}
+
+function MinCharsFooter({
+  helper,
+  minChars,
+  remaining,
+  minMet,
+  minCharsRemainingLabel,
+  minCharsMetLabel,
+}: {
+  helper?: string;
+  minChars?: number;
+  remaining: number;
+  minMet: boolean;
+  minCharsRemainingLabel?: (remaining: number) => string;
+  minCharsMetLabel?: string;
+}) {
+  const showCounter =
+    minChars !== undefined &&
+    (minCharsRemainingLabel || minCharsMetLabel);
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      {helper ? <p className="text-xs text-ink-500">{helper}</p> : <span />}
+      {showCounter && (
+        <p
+          className={`text-xs font-medium tabular-nums ${
+            minMet ? "text-emerald-600" : "text-amber-700"
+          }`}
+          aria-live="polite"
+        >
+          {minMet && minCharsMetLabel
+            ? minCharsMetLabel
+            : minCharsRemainingLabel?.(remaining)}
+        </p>
+      )}
+    </div>
   );
 }
 

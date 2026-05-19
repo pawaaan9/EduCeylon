@@ -56,6 +56,42 @@ export function DashboardShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [signOutConfirmOpen]);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
   // Prefer the logged-in user (Firebase profile) over the static prop.
   const effectiveUser = profile
     ? { name: profile.name, email: profile.email }
@@ -81,23 +117,19 @@ export function DashboardShell({
     admin: "Admin Portal",
   }[role];
 
+  const activeHref = useMemo(
+    () => getActiveNavHref(pathname, sections),
+    [pathname, sections],
+  );
+
   const pageTitle = useMemo(() => {
-    let match: NavItem | undefined;
-    let matchLen = -1;
+    if (!activeHref) return undefined;
     for (const section of sections) {
-      for (const item of section.items) {
-        const href = item.href;
-        const isMatch =
-          pathname === href ||
-          (href !== "/" && pathname.startsWith(`${href}/`));
-        if (isMatch && href.length > matchLen) {
-          match = item;
-          matchLen = href.length;
-        }
-      }
+      const item = section.items.find((i) => i.href === activeHref);
+      if (item) return item.label;
     }
-    return match?.label;
-  }, [sections, pathname]);
+    return undefined;
+  }, [sections, activeHref]);
 
   return (
     <div className="min-h-screen bg-ink-50">
@@ -110,7 +142,7 @@ export function DashboardShell({
             {roleLabel}
           </div>
         </div>
-        <SidebarNav sections={sections} pathname={pathname} />
+        <SidebarNav sections={sections} activeHref={activeHref} />
         <UserPanel
           user={effectiveUser}
           signOutAriaLabel={t("action.signOut")}
@@ -119,10 +151,14 @@ export function DashboardShell({
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-80 bg-white shadow-xl flex flex-col fade-up">
-            <div className="h-16 border-b border-ink-200 flex items-center justify-between px-5">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/40"
+            aria-hidden
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-[min(20rem,88vw)] flex-col overflow-y-auto overscroll-y-contain bg-white shadow-xl fade-up touch-pan-y">
+            <div className="shrink-0 h-16 border-b border-ink-200 flex items-center justify-between px-5">
               <Logo size="sm" />
               <button
                 onClick={() => setMobileOpen(false)}
@@ -132,15 +168,16 @@ export function DashboardShell({
                 <CloseIcon className="h-5 w-5" />
               </button>
             </div>
-            <div className="px-5 py-4 border-b border-ink-200">
+            <div className="shrink-0 px-5 py-4 border-b border-ink-200">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">
                 {roleLabel}
               </div>
             </div>
             <SidebarNav
               sections={sections}
-              pathname={pathname}
+              activeHref={activeHref}
               onNavigate={() => setMobileOpen(false)}
+              embedded
             />
             <UserPanel
               user={effectiveUser}
@@ -262,26 +299,52 @@ export function DashboardShell({
   );
 }
 
+/** Longest matching nav href so `/admin` is not active on `/admin/students`. */
+function getActiveNavHref(pathname: string, sections: NavSection[]): string | null {
+  let match: string | null = null;
+  let matchLen = -1;
+  for (const section of sections) {
+    for (const item of section.items) {
+      const href = item.href;
+      const isMatch =
+        pathname === href ||
+        (href !== "/" && pathname.startsWith(`${href}/`));
+      if (isMatch && href.length > matchLen) {
+        match = href;
+        matchLen = href.length;
+      }
+    }
+  }
+  return match;
+}
+
 function SidebarNav({
   sections,
-  pathname,
+  activeHref,
   onNavigate,
+  embedded,
 }: {
   sections: NavSection[];
-  pathname: string;
+  activeHref: string | null;
   onNavigate?: () => void;
+  /** Mobile drawer: parent aside scrolls; nav is not a nested scroll region. */
+  embedded?: boolean;
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-6">
+    <nav
+      className={
+        embedded
+          ? "shrink-0 px-3 py-4 space-y-6"
+          : "flex-1 min-h-0 overflow-y-auto scrollbar-thin px-3 py-4 space-y-6"
+      }
+    >
       {sections.map((section, i) => (
         <div key={`section-${i}`} className="space-y-1">
           {section.heading && (
             <div className="sidebar-section-label">{section.heading}</div>
           )}
           {section.items.map((item) => {
-            const active =
-              pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(item.href));
+            const active = item.href === activeHref;
             return (
               <Link
                 key={item.href}
@@ -311,7 +374,7 @@ function UserPanel({
   onRequestSignOut: () => void;
 }) {
   return (
-    <div className="border-t border-ink-200 p-4">
+    <div className="shrink-0 border-t border-ink-200 p-4">
       <div className="flex items-center gap-3 p-2 rounded-xl bg-ink-50">
         <Avatar name={user.name} size={36} />
         <div className="min-w-0 flex-1 leading-tight">

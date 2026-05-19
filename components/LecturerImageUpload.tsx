@@ -28,6 +28,7 @@ export function LecturerImageUpload({
   onChange,
   previewAspect,
   cropPreset,
+  priority = false,
 }: {
   uid: string;
   label: string;
@@ -38,6 +39,8 @@ export function LecturerImageUpload({
   previewAspect: PreviewAspect;
   /** When set, opens a crop step before upload. */
   cropPreset?: ImageCropPresetKey;
+  /** Preload when this preview is likely the LCP (e.g. cover banner). */
+  priority?: boolean;
 }) {
   const t = useT();
   const { user } = useAuth();
@@ -105,9 +108,11 @@ export function LecturerImageUpload({
                 src={currentUrl}
                 alt={label}
                 fill
-                sizes="200px"
+                sizes={previewAspect === "cover" ? "(max-width: 768px) 100vw, 448px" : "128px"}
                 className="object-cover"
                 unoptimized
+                priority={priority}
+                loading={priority ? "eager" : undefined}
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center text-ink-400">

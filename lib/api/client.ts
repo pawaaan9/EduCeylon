@@ -26,7 +26,11 @@ async function apiRequest<T>(path: string, init?: ApiRequestInit): Promise<T> {
     let message = `Request failed (${res.status})`;
     try {
       const errBody = (await res.json()) as { error?: string; detail?: string };
-      message = errBody.error ?? errBody.detail ?? message;
+      if (errBody.error && errBody.detail) {
+        message = `${errBody.error}: ${errBody.detail}`;
+      } else {
+        message = errBody.error ?? errBody.detail ?? message;
+      }
     } catch {
       const text = await res.text().catch(() => "");
       if (res.status === 404) {

@@ -1,73 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { ArrowRightIcon, CheckCircleIcon } from "@/components/icons";
-import { fetchMyLecturerProfile } from "@/lib/api/lecturers";
-import type { LecturerProfile } from "@/lib/api/types";
-import { useAuth } from "@/lib/firebase/AuthProvider";
+import { useOptionalLecturerProfile } from "@/lib/lecturer/LecturerProfileProvider";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 /**
  * Dashboard prompt for incomplete lecturer profiles.
- * Hidden once the profile is approved.
+ * Renders immediately (no skeleton); progress refines when the API responds.
  */
 export function LecturerOnboardingBanner() {
   const t = useT();
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<LecturerProfile | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const ctx = useOptionalLecturerProfile();
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
+  if (!ctx) return null;
 
-    async function load() {
-      if (!user) return;
-      try {
-        const token = await user.getIdToken();
-        const data = await fetchMyLecturerProfile(token);
-        if (!cancelled) {
-          setProfile(data?.profile ?? null);
-          setLoaded(true);
-        }
-      } catch {
-        if (!cancelled) {
-          setProfile(null);
-          setLoaded(true);
-        }
-      }
-    }
-
-    void load();
-    const interval = window.setInterval(() => void load(), 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [user]);
-
-  if (!loaded) return null;
-
+  const { profile, loading } = ctx;
   const completion = profile?.completion ?? 0;
   const status = profile?.approvalStatus ?? "incomplete";
 
-  if (status === "approved") return null;
+  if (!loading && status === "approved") return null;
 
-  if (status === "pending") {
+  if (!loading && status === "pending") {
     return (
       <div className="card flex flex-col gap-3 border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center">
         <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-800">
           <CheckCircleIcon className="h-5 w-5" />
         </div>
-        <div className="flex-1">
-          <div className="text-sm font-semibold text-amber-900">
-            {t("onboard.banner.pendingTitle")}
-          </div>
-          <div className="text-xs text-amber-800">
-            {t("onboard.banner.pendingBody")}
-          </div>
-        </div>
+        <PendingBannerText t={t} />
         <Link
           href="/lecturer/onboarding"
           className="btn btn-secondary justify-center"
@@ -77,6 +37,8 @@ export function LecturerOnboardingBanner() {
       </div>
     );
   }
+
+  const refining = loading && !!profile;
 
   return (
     <div className="card overflow-hidden p-0">
@@ -89,15 +51,18 @@ export function LecturerOnboardingBanner() {
             {t("onboard.banner.title")}
           </h3>
           <p className="mt-1 text-sm text-ink-600">{t("onboard.banner.body")}</p>
-
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5 text-xs font-medium text-ink-600">
               <span>{t("onboard.progress")}</span>
-              <span className="font-bold text-brand-700">{completion}%</span>
+              <span
+                className={`font-bold text-brand-700 ${refining ? "opacity-60" : ""}`}
+              >
+                {completion}%
+              </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
               <div
-                className="h-full brand-gradient transition-all"
+                className="h-full brand-gradient transition-all duration-300"
                 style={{ width: `${completion}%` }}
               />
             </div>
@@ -105,7 +70,9 @@ export function LecturerOnboardingBanner() {
         </div>
         <div className="border-t border-ink-100 p-5 sm:border-l sm:border-t-0 sm:p-6">
           <Link href="/lecturer/onboarding" className="btn btn-primary w-full">
-            {completion === 0 ? t("onboard.banner.start") : t("onboard.banner.continue")}
+            {completion === 0
+              ? t("onboard.banner.start")
+              : t("onboard.banner.continue")}
             <ArrowRightIcon className="h-4 w-4" />
           </Link>
           {status === "rejected" && profile?.rejectionReason && (
@@ -115,6 +82,17 @@ export function LecturerOnboardingBanner() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PendingBannerText({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="flex-1">
+      <div className="text-sm font-semibold text-amber-900">
+        {t("onboard.banner.pendingTitle")}
+      </div>
+      <div className="text-xs text-amber-800">{t("onboard.banner.pendingBody")}</div>
     </div>
   );
 }

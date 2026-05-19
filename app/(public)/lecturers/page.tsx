@@ -1,25 +1,45 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LecturerCard } from "@/components/LecturerCard";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { LECTURERS } from "@/lib/data/mock";
+import { fetchPublicLecturers } from "@/lib/api/public-lecturers";
+import type { Lecturer } from "@/lib/data/types";
 import { SearchIcon } from "@/components/icons";
 
 export default function LecturersPage() {
   const t = useT();
   const [query, setQuery] = useState("");
+  const [lecturers, setLecturers] = useState<Lecturer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchPublicLecturers();
+        if (!cancelled) setLecturers(data);
+      } catch {
+        if (!cancelled) setLecturers([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return LECTURERS;
-    return LECTURERS.filter(
+    if (!q) return lecturers;
+    return lecturers.filter(
       (l) =>
         l.name.toLowerCase().includes(q) ||
         l.subjects.some((s) => s.toLowerCase().includes(q)) ||
         l.title.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, lecturers]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
@@ -49,11 +69,24 @@ export default function LecturersPage() {
         </div>
       </div>
 
-      <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {filtered.map((l) => (
-          <LecturerCard key={l.id} lecturer={l} />
-        ))}
-      </div>
+      {loading ? (
+        <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-72 rounded-2xl border border-ink-200 bg-ink-50 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="mt-8 text-center text-ink-500">{t("home.lecturers.empty")}</p>
+      ) : (
+        <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {filtered.map((l) => (
+            <LecturerCard key={l.id} lecturer={l} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

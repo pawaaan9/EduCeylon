@@ -4,6 +4,8 @@ import type {
   TeachingMethod,
 } from "@/lib/api/types";
 
+export { MIN_BIO_LENGTH } from "@/lib/onboarding/bio";
+
 /** Form option values — must match backend `lecturer-profile-constants`. */
 export const TEACHING_LEVELS: TeachingLevel[] = [
   "ol",

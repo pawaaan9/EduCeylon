@@ -2,6 +2,7 @@
 
 import { DashboardShell, type NavSection } from "@/components/DashboardShell";
 import { RequireRole } from "@/components/RequireRole";
+import { LecturerProfileProvider } from "@/lib/lecturer/LecturerProfileProvider";
 import {
   BellIcon,
   BookIcon,
@@ -53,9 +54,11 @@ export default function LecturerLayout({
 
   return (
     <RequireRole role="lecturer">
-      <DashboardShell role="lecturer" user={FALLBACK_USER} sections={sections}>
-        {children}
-      </DashboardShell>
+      <LecturerProfileProvider>
+        <DashboardShell role="lecturer" user={FALLBACK_USER} sections={sections}>
+          {children}
+        </DashboardShell>
+      </LecturerProfileProvider>
     </RequireRole>
   );
 }

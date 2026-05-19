@@ -78,6 +78,22 @@ export type TeachingLevel =
 
 export type TeachingMethod = "recorded" | "live" | "physical" | "hybrid";
 
+export type DayKey =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun";
+
+export type DayScheduleSlot = {
+  from: string;
+  to: string;
+};
+
+export type AvailableSchedule = Partial<Record<DayKey, DayScheduleSlot>>;
+
 /** Degree or certification entry on a lecturer onboarding profile. */
 export type LecturerQualification = {
   id?: string;
@@ -109,6 +125,7 @@ export type LecturerProfile = {
   // Teaching
   teachingMethods: TeachingMethod[];
   availableDays: string[];
+  availableSchedule?: AvailableSchedule;
   availableFrom?: string;
   availableTo?: string;
   // Social

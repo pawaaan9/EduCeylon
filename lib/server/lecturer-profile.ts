@@ -1,6 +1,7 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { getAdmin } from "./firebase-admin";
+import { getAdmin, getStorageBucketName } from "./firebase-admin";
 import { normalizeQualifications } from "./qualifications";
 import type { LecturerProfile } from "./types";
 import {
@@ -164,17 +165,30 @@ export async function uploadLecturerAsset(
       : key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
   const path = `lecturers/${uid}/${safeKey}.${ext}`;
 
+  const bucketName = getStorageBucketName();
+  if (!bucketName) {
+    throw new Error(
+      "Storage bucket is not configured. Set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET in .env.local.",
+    );
+  }
+
   const { storage } = getAdmin();
-  const bucket = storage.bucket();
+  const bucket = storage.bucket(bucketName);
   const file = bucket.file(path);
+  const downloadToken = randomUUID();
 
   await file.save(buffer, {
-    metadata: { contentType },
+    metadata: {
+      contentType,
+      metadata: {
+        firebaseStorageDownloadTokens: downloadToken,
+      },
+    },
     resumable: false,
   });
 
-  await file.makePublic();
-  return `https://storage.googleapis.com/${bucket.name}/${path}`;
+  const encodedPath = encodeURIComponent(path);
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
 }
 
 /** Evaluate onboarding progress from a profile payload (saved or draft). */

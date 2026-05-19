@@ -24,6 +24,22 @@ export type TeachingLevel =
 
 export type TeachingMethod = "recorded" | "live" | "physical" | "hybrid";
 
+export type DayKey =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun";
+
+export type DayScheduleSlot = {
+  from: string;
+  to: string;
+};
+
+export type AvailableSchedule = Partial<Record<DayKey, DayScheduleSlot>>;
+
 export type LecturerProfile = {
   uid: string;
   email?: string;
@@ -43,6 +59,7 @@ export type LecturerProfile = {
   lecturerType?: LecturerType;
   teachingMethods: TeachingMethod[];
   availableDays: string[];
+  availableSchedule?: AvailableSchedule;
   availableFrom?: string;
   availableTo?: string;
   facebook?: string;
@@ -60,6 +77,10 @@ export type LecturerProfile = {
   approvalStatus: LecturerApprovalStatus;
   completion: number;
   rejectionReason?: string;
+  submittedAt?: string;
+  updatedAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
 };
 
 export type OnboardingStepKey =

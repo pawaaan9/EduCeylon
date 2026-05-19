@@ -42,6 +42,9 @@ export type Lecturer = {
   subjects: string[];
   verified: boolean;
   coverGradient: string;
+  photoURL?: string;
+  coverURL?: string;
+  district?: string;
   social?: { youtube?: string; facebook?: string; web?: string };
 };
 

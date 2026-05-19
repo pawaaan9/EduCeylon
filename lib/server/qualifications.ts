@@ -1,5 +1,9 @@
 import "server-only";
 import {
+  isQualificationComplete,
+  hasValidQualifications,
+} from "@/lib/onboarding/qualifications";
+import {
   QUALIFICATION_INSTITUTE_SUGGESTIONS,
   QUALIFICATION_TITLE_SUGGESTIONS,
 } from "./data/qualification-suggestions";
@@ -8,6 +12,8 @@ import type { LecturerQualification } from "./types";
 export {
   QUALIFICATION_INSTITUTE_SUGGESTIONS,
   QUALIFICATION_TITLE_SUGGESTIONS,
+  isQualificationComplete,
+  hasValidQualifications,
 };
 
 function newQualificationId(): string {
@@ -16,18 +22,6 @@ function newQualificationId(): string {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-export function isQualificationComplete(q: LecturerQualification): boolean {
-  return (
-    !!q.title.trim() &&
-    !!q.institute.trim() &&
-    /^\d{4}$/.test(q.year.trim())
-  );
-}
-
-export function hasValidQualifications(quals: LecturerQualification[]): boolean {
-  return quals.some(isQualificationComplete);
 }
 
 /** Migrate legacy string tags and partial objects from Firestore. */

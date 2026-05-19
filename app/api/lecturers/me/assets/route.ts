@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyFirebaseToken } from "@/lib/server/auth-middleware";
+import { verifyBearerToken } from "@/lib/server/auth-middleware";
 import {
   uploadLecturerAsset,
   type UploadKey,
@@ -17,7 +17,7 @@ const ALLOWED_KEYS: UploadKey[] = [
 
 /** Authed lecturer: upload onboarding asset (base64 body). */
 export async function POST(req: NextRequest) {
-  const auth = await verifyFirebaseToken(req);
+  const auth = await verifyBearerToken(req);
   if (!auth.ok) return auth.response;
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

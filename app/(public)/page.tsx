@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { CourseCard } from "@/components/CourseCard";
-import { LecturerCard } from "@/components/LecturerCard";
+import { HomeLecturersSection } from "@/components/PublicLecturersSection";
 import { SectionHeader } from "@/components/SectionHeader";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { CATEGORIES, COURSES, LECTURERS, LIVE_SESSIONS } from "@/lib/data/mock";
+import { CATEGORIES, COURSES, LIVE_SESSIONS } from "@/lib/data/mock";
 import { formatLiveSessionStart } from "@/lib/format-live-session-start";
 import {
   ArrowRightIcon,
@@ -19,8 +19,6 @@ import {
 export default function HomePage() {
   const { t, locale } = useI18n();
   const featured = COURSES.filter((c) => c.featured).slice(0, 6);
-  const lecturers = LECTURERS.slice(0, 4);
-
   return (
     <div className="flex flex-col">
       {/* HERO */}
@@ -174,28 +172,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* LECTURERS */}
-        <section>
-          <SectionHeader
-            eyebrow="Lecturers"
-            title={t("home.lecturers.title")}
-            subtitle={t("home.lecturers.subtitle")}
-            action={
-              <Link
-                href="/lecturers"
-                className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:text-brand-900"
-              >
-                {t("home.lecturers.viewAll")}
-                <ArrowRightIcon className="h-4 w-4" />
-              </Link>
-            }
-          />
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {lecturers.map((l) => (
-              <LecturerCard key={l.id} lecturer={l} />
-            ))}
-          </div>
-        </section>
+        <HomeLecturersSection limit={4} />
 
         {/* WHY */}
         <section>

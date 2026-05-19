@@ -1,26 +1,30 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { CloseIcon } from "@/components/icons";
 import { fetchQualificationSuggestions } from "@/lib/api/lecturers";
+import { isQualificationComplete } from "@/lib/onboarding/qualifications";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { LecturerQualification } from "@/lib/api/types";
+
+export type QualificationsInputHandle = {
+  /** Adds the in-progress row to the list if it is complete. Returns updated list or null. */
+  commitDraft: () => LecturerQualification[] | null;
+  hasPendingDraft: () => boolean;
+};
 
 function newQualificationId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return `q-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function isQualificationComplete(
-  q: Omit<LecturerQualification, "id">,
-): boolean {
-  return (
-    !!q.title.trim() &&
-    !!q.institute.trim() &&
-    /^\d{4}$/.test(q.year.trim())
-  );
 }
 
 function filterSuggestions(
@@ -113,17 +117,23 @@ function SuggestField({
 
 const EMPTY_SUGGESTIONS = { titles: [] as string[], institutes: [] as string[] };
 
-export function QualificationsInput({
-  label,
-  helper,
-  values,
-  onChange,
-}: {
-  label: string;
-  helper?: string;
-  values: LecturerQualification[];
-  onChange: (next: LecturerQualification[]) => void;
-}) {
+export const QualificationsInput = forwardRef<
+  QualificationsInputHandle,
+  {
+    label: string;
+    helper?: string;
+    values: LecturerQualification[];
+    onChange: (next: LecturerQualification[]) => void;
+    onDraftChange?: (draft: {
+      title: string;
+      institute: string;
+      year: string;
+    }) => void;
+  }
+>(function QualificationsInput(
+  { label, helper, values, onChange, onDraftChange },
+  ref,
+) {
   const t = useT();
   const [draft, setDraft] = useState({
     title: "",
@@ -132,6 +142,20 @@ export function QualificationsInput({
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState(EMPTY_SUGGESTIONS);
+
+  const draftComplete = isQualificationComplete(draft);
+  const showPendingHint =
+    draftComplete &&
+    !values.some(
+      (q) =>
+        q.title === draft.title.trim() &&
+        q.institute === draft.institute.trim() &&
+        q.year === draft.year.trim(),
+    );
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,21 +171,45 @@ export function QualificationsInput({
     };
   }, []);
 
-  function addQualification() {
-    const entry: LecturerQualification = {
+  function buildDraftEntry(): LecturerQualification {
+    return {
       id: newQualificationId(),
       title: draft.title.trim(),
       institute: draft.institute.trim(),
       year: draft.year.trim(),
     };
+  }
+
+  function addQualification(): LecturerQualification[] | null {
+    const entry = buildDraftEntry();
     if (!isQualificationComplete(entry)) {
       setFormError(t("onboard.prof.qualifications.incomplete"));
-      return;
+      return null;
     }
     setFormError(null);
-    onChange([...values, entry]);
+    const next = [...values, entry];
+    onChange(next);
     setDraft({ title: "", institute: "", year: "" });
+    return next;
   }
+
+  useImperativeHandle(ref, () => ({
+    commitDraft: () => {
+      if (!draftComplete) return null;
+      const already = values.some(
+        (q) =>
+          q.title === draft.title.trim() &&
+          q.institute === draft.institute.trim() &&
+          q.year === draft.year.trim(),
+      );
+      if (already) {
+        setDraft({ title: "", institute: "", year: "" });
+        return values;
+      }
+      return addQualification();
+    },
+    hasPendingDraft: () => showPendingHint,
+  }));
 
   return (
     <div>
@@ -237,14 +285,22 @@ export function QualificationsInput({
           </p>
         )}
 
+        {showPendingHint && (
+          <p className="text-xs font-medium text-amber-800" role="status">
+            {t("onboard.prof.qualifications.pendingHint")}
+          </p>
+        )}
+
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={addQualification}
+          onClick={() => {
+            void addQualification();
+          }}
         >
           {t("onboard.prof.qualifications.add")}
         </button>
       </div>
     </div>
   );
-}
+});

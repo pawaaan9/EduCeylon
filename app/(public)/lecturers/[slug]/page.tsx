@@ -1,14 +1,8 @@
 import { notFound } from "next/navigation";
-import {
-  LECTURERS,
-  getCoursesByLecturer,
-  getLecturerBySlug,
-} from "@/lib/data/mock";
+import { getPublicLecturerBySlug } from "@/lib/server/public-lecturers";
 import { LecturerProfileClient } from "./LecturerProfileClient";
 
-export function generateStaticParams() {
-  return LECTURERS.map((l) => ({ slug: l.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function LecturerPage({
   params,
@@ -16,8 +10,7 @@ export default async function LecturerPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const lecturer = getLecturerBySlug(slug);
+  const lecturer = await getPublicLecturerBySlug(slug);
   if (!lecturer) return notFound();
-  const courses = getCoursesByLecturer(lecturer.id);
-  return <LecturerProfileClient lecturer={lecturer} courses={courses} />;
+  return <LecturerProfileClient lecturer={lecturer} courses={[]} />;
 }

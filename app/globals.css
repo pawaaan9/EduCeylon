@@ -139,6 +139,31 @@ html[lang="ta"] .font-display {
   color: #94a3b8;
 }
 
+.textarea-base {
+  width: 100%;
+  min-height: 120px;
+  height: auto;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.textarea-base:focus {
+  outline: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+}
+
+.textarea-base::placeholder {
+  color: #94a3b8;
+}
+
 .select-base {
   appearance: none;
   padding-right: 2.75rem;

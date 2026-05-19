@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyFirebaseToken } from "@/lib/server/auth-middleware";
+import { verifyBearerToken } from "@/lib/server/auth-middleware";
 import {
   evaluateLecturerProfile,
   getLecturerProfileByUid,
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 /** Authed lecturer: read your own onboarding profile. */
 export async function GET(req: NextRequest) {
-  const auth = await verifyFirebaseToken(req);
+  const auth = await verifyBearerToken(req);
   if (!auth.ok) return auth.response;
 
   try {

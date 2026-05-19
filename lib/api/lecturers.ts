@@ -1,3 +1,5 @@
+import type { User } from "firebase/auth";
+
 import { apiGet, apiPatch, apiPost } from "@/lib/api/client";
 import type {
   LecturerProfile,
@@ -17,10 +19,45 @@ export async function fetchQualificationSuggestions(): Promise<QualificationSugg
   );
 }
 
+export async function fetchSubCategorySuggestions(): Promise<string[]> {
+  return apiGet<string[]>("/lecturers/sub-category-suggestions");
+}
+
 export async function fetchMyLecturerProfile(
   token: string,
 ): Promise<LecturerProfileResponse | null> {
   return apiGet<LecturerProfileResponse | null>("/lecturers/me", { token });
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Load lecturer profile with retries. Right after sign-in the ID token can lag;
+ * forcing refresh on retries clears intermittent 401s and avoids long waits on failure.
+ */
+export async function fetchMyLecturerProfileForUser(
+  user: User,
+  opts?: { attempts?: number },
+): Promise<LecturerProfileResponse | null> {
+  const attempts = opts?.attempts ?? 2;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const forceRefresh = attempt > 0;
+      const token = await user.getIdToken(forceRefresh);
+      return await fetchMyLecturerProfile(token);
+    } catch (e) {
+      lastError = e;
+      if (attempt < attempts - 1) {
+        await delay(250 * (attempt + 1));
+      }
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Could not load lecturer profile");
 }
 
 export async function saveMyLecturerProfile(

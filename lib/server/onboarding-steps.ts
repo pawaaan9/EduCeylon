@@ -1,5 +1,7 @@
 import "server-only";
-import { hasValidQualifications } from "./qualifications";
+import { MIN_BIO_LENGTH } from "@/lib/onboarding/bio";
+import { hasValidQualifications } from "@/lib/onboarding/qualifications";
+import { isTeachingScheduleComplete } from "@/lib/onboarding/schedule";
 import type { LecturerProfile } from "./types";
 
 export type OnboardingStepKey =
@@ -26,21 +28,19 @@ const STEP_CHECKS: Record<OnboardingStepKey, (p: LecturerProfile) => boolean> = 
     !!p.displayName?.trim() &&
     !!p.photoURL &&
     !!p.bio &&
-    p.bio.trim().length >= 30 &&
+    p.bio.trim().length >= MIN_BIO_LENGTH &&
     !!p.district?.trim() &&
     p.languages.length > 0,
   professional: (p) =>
     !!p.mainSubject?.trim() &&
     p.teachingLevels.length > 0 &&
     typeof p.experienceYears === "number" &&
+    !Number.isNaN(p.experienceYears) &&
     p.experienceYears >= 0 &&
     hasValidQualifications(p.qualifications) &&
     !!p.lecturerType,
   teaching: (p) =>
-    p.teachingMethods.length > 0 &&
-    p.availableDays.length > 0 &&
-    !!p.availableFrom &&
-    !!p.availableTo,
+    p.teachingMethods.length > 0 && isTeachingScheduleComplete(p),
   social: () => true,
   verification: (p) => !!p.nicFrontURL && !!p.nicBackURL,
   banking: (p) =>

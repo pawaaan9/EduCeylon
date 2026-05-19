@@ -16,6 +16,66 @@ export type AuthResult =
   | { ok: true; user: AuthedUser }
   | { ok: false; response: NextResponse };
 
+function readBearerToken(req: NextRequest | Request): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
+function roleFromCustomClaims(
+  decoded: Record<string, unknown>,
+): AppRole | null {
+  const role = decoded.role;
+  if (role === "admin" || role === "lecturer" || role === "student") {
+    return role;
+  }
+  return null;
+}
+
+/**
+ * Fast auth for `/api/lecturers/me/*` — verifies the ID token only (no Firestore).
+ * Saves ~1–2s vs full `verifyFirebaseToken` on every lecturer self-service call.
+ */
+export async function verifyBearerToken(
+  req: NextRequest | Request,
+): Promise<AuthResult> {
+  const idToken = readBearerToken(req);
+  if (!idToken) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Missing bearer token" },
+        { status: 401 },
+      ),
+    };
+  }
+
+  try {
+    const { auth } = getAdmin();
+    const decoded = await auth.verifyIdToken(idToken);
+    const claims = decoded as unknown as Record<string, unknown>;
+    return {
+      ok: true,
+      user: {
+        uid: decoded.uid,
+        email: decoded.email ?? null,
+        role: roleFromCustomClaims(claims),
+        name: (claims.name as string | undefined) ?? null,
+      },
+    };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to verify ID token";
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Invalid or expired token", detail: message },
+        { status: 401 },
+      ),
+    };
+  }
+}
+
 /**
  * Verify a Firebase ID token from the `Authorization: Bearer <token>` header.
  * Returns the authed user or a `NextResponse` with the appropriate error.
@@ -29,8 +89,8 @@ export type AuthResult =
 export async function verifyFirebaseToken(
   req: NextRequest | Request,
 ): Promise<AuthResult> {
-  const header = req.headers.get("authorization");
-  if (!header || !header.startsWith("Bearer ")) {
+  const idToken = readBearerToken(req);
+  if (!idToken) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -40,54 +100,55 @@ export async function verifyFirebaseToken(
     };
   }
 
-  const idToken = header.slice("Bearer ".length).trim();
   try {
     const { auth, db } = getAdmin();
     const decoded = await auth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const claims = decoded as unknown as Record<string, unknown>;
+    const claimRole = roleFromCustomClaims(claims);
 
-    // One collection per role:
-    //  - admins/{uid}     → admin
-    //  - lecturers/{uid}  → lecturer
-    //  - students/{uid}   → student
-    //  - users/{uid}      → legacy fallback (pre-split schema)
+    if (claimRole) {
+      return {
+        ok: true,
+        user: {
+          uid,
+          email: decoded.email ?? null,
+          role: claimRole,
+          name: (claims.name as string | undefined) ?? null,
+        },
+      };
+    }
+
+    const [adminSnap, lecturerSnap, studentSnap, legacySnap] = await Promise.all([
+      db.collection("admins").doc(uid).get(),
+      db.collection("lecturers").doc(uid).get(),
+      db.collection("students").doc(uid).get(),
+      db.collection("users").doc(uid).get(),
+    ]);
+
     let role: AppRole | null = null;
     let name: string | null = null;
 
-    const adminSnap = await db.collection("admins").doc(decoded.uid).get();
     if (adminSnap.exists) {
       role = "admin";
       name = (adminSnap.data()?.name as string | undefined) ?? null;
-    } else {
-      const lecturerSnap = await db
-        .collection("lecturers")
-        .doc(decoded.uid)
-        .get();
-      if (lecturerSnap.exists) {
-        role = "lecturer";
-        name = (lecturerSnap.data()?.name as string | undefined) ?? null;
-      } else {
-        const studentSnap = await db
-          .collection("students")
-          .doc(decoded.uid)
-          .get();
-        if (studentSnap.exists) {
-          role = "student";
-          name = (studentSnap.data()?.name as string | undefined) ?? null;
-        } else {
-          // Legacy
-          const userSnap = await db.collection("users").doc(decoded.uid).get();
-          const profile = userSnap.exists ? userSnap.data() : null;
-          const docRole = profile?.role as AppRole | undefined;
-          role = docRole === "admin" ? null : docRole ?? null;
-          name = (profile?.name as string | undefined) ?? null;
-        }
-      }
+    } else if (lecturerSnap.exists) {
+      role = "lecturer";
+      name = (lecturerSnap.data()?.name as string | undefined) ?? null;
+    } else if (studentSnap.exists) {
+      role = "student";
+      name = (studentSnap.data()?.name as string | undefined) ?? null;
+    } else if (legacySnap.exists) {
+      const profile = legacySnap.data();
+      const docRole = profile?.role as AppRole | undefined;
+      role = docRole === "admin" ? null : docRole ?? null;
+      name = (profile?.name as string | undefined) ?? null;
     }
 
     return {
       ok: true,
       user: {
-        uid: decoded.uid,
+        uid,
         email: decoded.email ?? null,
         role,
         name,
