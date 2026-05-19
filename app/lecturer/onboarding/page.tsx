@@ -101,6 +101,15 @@ export default function LecturerOnboardingPage() {
         if (base.approvalStatus === "pending" || base.approvalStatus === "approved") {
           setSubmitted(true);
         }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not load profile. Is the API server running?",
+          );
+          setProfile(emptyLecturerProfile(user.uid));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

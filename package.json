@@ -6,10 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "create-admin": "tsx scripts/create-superadmin.ts",
+    "bootstrap-admin": "tsx scripts/bootstrap-superadmin.ts"
   },
   "dependencies": {
+    "dotenv": "^16.6.1",
     "firebase": "^12.13.0",
+    "firebase-admin": "^13.10.0",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -23,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.22.2",
     "typescript": "^5"
   }
 }

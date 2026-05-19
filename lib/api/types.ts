@@ -1,4 +1,4 @@
-/** API response shapes — keep in sync with educeylon-be `src/types.ts`. */
+/** API response shapes — kept in sync with `lib/server/types.ts`. */
 
 export type LecturerQualification = {
   id: string;

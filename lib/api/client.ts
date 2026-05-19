@@ -1,6 +1,5 @@
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "http://localhost:4000/api";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "/api";
 
 type ApiEnvelope<T> = { data: T };
 
@@ -23,15 +22,21 @@ async function apiRequest<T>(path: string, init?: ApiRequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    const url = `${API_BASE}${path}`;
     let message = `Request failed (${res.status})`;
     try {
       const errBody = (await res.json()) as { error?: string; detail?: string };
       message = errBody.error ?? errBody.detail ?? message;
     } catch {
       const text = await res.text().catch(() => "");
-      if (text) message = text;
+      if (res.status === 404) {
+        message =
+          "API route not found. Restart the Next.js dev server (npm run dev) to pick up new route handlers.";
+      } else if (text) {
+        message = text;
+      }
     }
-    throw new Error(message);
+    throw new Error(`${message} (${url})`);
   }
 
   const payload = (await res.json()) as ApiEnvelope<T>;
