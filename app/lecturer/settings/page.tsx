@@ -1,43 +1,36 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GradientHeader } from "@/components/GradientHeader";
-import { LecturerImageUpload } from "@/components/LecturerImageUpload";
-import { CheckIcon, CheckCircleIcon, GlobeIcon, ShieldIcon, UserIcon } from "@/components/icons";
-import { LANGUAGE_OPTIONS } from "@/app/lecturer/onboarding/constants";
+import {
+  BankingStep,
+  BasicStep,
+  ProfessionalStep,
+  SocialStep,
+  TeachingStep,
+} from "@/components/lecturer/LecturerProfileStepForms";
+import type { QualificationsInputHandle } from "@/components/QualificationsInput";
+import { CheckCircleIcon, GlobeIcon, ShieldIcon, UserIcon } from "@/components/icons";
 import { saveMyLecturerProfile } from "@/lib/api/lecturers";
 import type { LecturerProfile } from "@/lib/api/types";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useLecturerProfile } from "@/lib/lecturer/LecturerProfileProvider";
 import {
-  SRI_LANKA_DISTRICTS,
-  findDistrict,
-  localizedLabel,
-} from "@/lib/data/sri-lanka-locations";
+  lecturerProfileSectionPatch,
+  mergeSectionFromServer,
+  profileSectionSnapshot,
+  type ProfileEditSection,
+} from "@/lib/lecturer/profile-patch";
+import { normalizeSriLankaPhone } from "@/lib/phone/sri-lanka";
+import {
+  formatSettingsValidationError,
+  validateSettingsSection,
+} from "@/lib/lecturer/settings-validation";
+import type { QualificationDraft } from "@/lib/onboarding/steps";
 import { useI18n, useT } from "@/lib/i18n/I18nProvider";
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/config";
-import { MIN_BIO_LENGTH } from "@/lib/onboarding/bio";
 
 type Tab = "general" | "security" | "language";
-
-type PersonalForm = {
-  displayName: string;
-  phone: string;
-  bio: string;
-  district: string;
-  languages: string[];
-};
-
-function profileToForm(p: LecturerProfile): PersonalForm {
-  return {
-    displayName: p.displayName ?? "",
-    phone: p.phone ?? "",
-    bio: p.bio ?? "",
-    district: p.district ?? "",
-    languages: [...(p.languages ?? [])],
-  };
-}
 
 export default function LecturerSettingsPage() {
   const { t, locale, setLocale } = useI18n();
@@ -74,7 +67,7 @@ export default function LecturerSettingsPage() {
         ))}
       </div>
 
-      {tab === "general" && <LecturerPersonalTab />}
+      {tab === "general" && <LecturerGeneralTab />}
       {tab === "security" && <SecurityTab />}
       {tab === "language" && (
         <LanguageTab locale={locale} setLocale={setLocale} />
@@ -83,59 +76,163 @@ export default function LecturerSettingsPage() {
   );
 }
 
-function LecturerPersonalTab() {
+function LecturerGeneralTab() {
   const t = useT();
-  const { locale } = useI18n();
   const { user } = useAuth();
-  const { profile, loading, setFromResponse } = useLecturerProfile();
-  const [form, setForm] = useState<PersonalForm | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { profile: serverProfile, loading, setFromResponse } = useLecturerProfile();
+  const [form, setForm] = useState<LecturerProfile | null>(null);
+  const [savingSection, setSavingSection] = useState<ProfileEditSection | null>(
+    null,
+  );
+  const [sectionMessage, setSectionMessage] = useState<
+    Partial<Record<ProfileEditSection, string>>
+  >({});
+  const [sectionError, setSectionError] = useState<
+    Partial<Record<ProfileEditSection, string>>
+  >({});
+  const qualificationsRef = useRef<QualificationsInputHandle>(null);
+  const [qualificationDraft, setQualificationDraft] =
+    useState<QualificationDraft>({
+      title: "",
+      institute: "",
+      year: "",
+    });
+  const [phoneFieldError, setPhoneFieldError] = useState<string | undefined>();
 
   const email =
-    profile?.email ?? user?.email ?? "";
+    serverProfile?.email ?? user?.email ?? "";
 
   useEffect(() => {
-    if (profile) setForm(profileToForm(profile));
-  }, [profile]);
+    if (!serverProfile) return;
+    const next = { ...serverProfile };
+    if (next.phone) {
+      const normalized = normalizeSriLankaPhone(next.phone);
+      if (normalized) next.phone = normalized;
+    }
+    setForm(next);
+  }, [serverProfile]);
 
-  const dirty = useMemo(() => {
-    if (!profile || !form) return false;
-    return JSON.stringify(profileToForm(profile)) !== JSON.stringify(form);
-  }, [profile, form]);
+  const isSectionDirty = useCallback(
+    (section: ProfileEditSection) => {
+      if (!form || !serverProfile) return false;
+      return (
+        profileSectionSnapshot(form, section) !==
+        profileSectionSnapshot(serverProfile, section)
+      );
+    },
+    [form, serverProfile],
+  );
 
-  const reset = useCallback(() => {
-    if (profile) setForm(profileToForm(profile));
-    setMessage(null);
-    setError(null);
-  }, [profile]);
+  const clearSectionFeedback = useCallback((section: ProfileEditSection) => {
+    setSectionMessage((m) => {
+      const next = { ...m };
+      delete next[section];
+      return next;
+    });
+    setSectionError((e) => {
+      const next = { ...e };
+      delete next[section];
+      return next;
+    });
+  }, []);
 
-  async function save() {
-    if (!user || !form) return;
-    setSaving(true);
-    setError(null);
-    setMessage(null);
+  const resetSection = useCallback(
+    (section: ProfileEditSection) => {
+      if (!serverProfile || !form) return;
+      setForm(mergeSectionFromServer(form, serverProfile, section));
+      clearSectionFeedback(section);
+    },
+    [serverProfile, form, clearSectionFeedback],
+  );
+
+  async function persist(patch: Partial<LecturerProfile>): Promise<boolean> {
+    if (!user) return false;
     try {
       const token = await user.getIdToken();
-      const result = await saveMyLecturerProfile(token, {
-        displayName: form.displayName.trim(),
-        phone: form.phone.trim() || undefined,
-        bio: form.bio.trim(),
-        district: form.district || undefined,
-        languages: form.languages,
-      });
+      const result = await saveMyLecturerProfile(token, patch);
       setFromResponse(result);
-      setForm(profileToForm(result.profile));
-      setMessage(t("lecturer.settings.saved"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("lecturer.settings.saveError"));
-    } finally {
-      setSaving(false);
+      setForm({ ...result.profile });
+      return true;
+    } catch {
+      return false;
     }
   }
 
-  if (loading || !form) {
+  function applyChange(patch: Partial<LecturerProfile>) {
+    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+    if ("phone" in patch) setPhoneFieldError(undefined);
+    const section = patchSectionForFields(patch);
+    if (section) clearSectionFeedback(section);
+  }
+
+  async function saveSection(section: ProfileEditSection) {
+    if (!user || !form) return;
+
+    let next = form;
+    if (section === "professional") {
+      const merged = qualificationsRef.current?.commitDraft();
+      if (merged) {
+        next = { ...next, qualifications: merged };
+        setForm(next);
+      }
+    }
+    if (section === "basic" && next.phone) {
+      const normalized = normalizeSriLankaPhone(next.phone);
+      if (normalized) next = { ...next, phone: normalized };
+    }
+
+    const missing = validateSettingsSection(section, next, t, {
+      qualificationDraft:
+        section === "professional" ? qualificationDraft : undefined,
+    });
+    if (missing.length > 0) {
+      const message = formatSettingsValidationError(missing, t);
+      setSectionError((e) => ({ ...e, [section]: message }));
+      setSectionMessage((m) => {
+        const copy = { ...m };
+        delete copy[section];
+        return copy;
+      });
+      if (section === "basic") {
+        if (!next.phone?.trim()) {
+          setPhoneFieldError(t("lecturer.settings.validation.phoneRequired"));
+        } else if (
+          missing.some((m) => m === t("phone.sriLanka.invalid"))
+        ) {
+          setPhoneFieldError(t("phone.sriLanka.invalid"));
+        }
+      }
+      return;
+    }
+
+    setPhoneFieldError(undefined);
+    setSavingSection(section);
+    clearSectionFeedback(section);
+
+    try {
+      const token = await user.getIdToken();
+      const result = await saveMyLecturerProfile(
+        token,
+        lecturerProfileSectionPatch(next, section),
+      );
+      setFromResponse(result);
+      setForm({ ...result.profile });
+      setSectionMessage((m) => ({
+        ...m,
+        [section]: t("lecturer.settings.saved"),
+      }));
+    } catch (e) {
+      setSectionError((err) => ({
+        ...err,
+        [section]:
+          e instanceof Error ? e.message : t("lecturer.settings.saveError"),
+      }));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  if (loading || !form || !user) {
     return (
       <div className="card p-8 text-center text-sm text-ink-500">
         {t("lecturer.settings.loading")}
@@ -143,182 +240,206 @@ function LecturerPersonalTab() {
     );
   }
 
-  const bioLen = form.bio.trim().length;
-  const districtLabel = findDistrict(form.district);
+  const sectionProps = (section: ProfileEditSection) => ({
+    dirty: isSectionDirty(section),
+    saving: savingSection === section,
+    message: sectionMessage[section],
+    error: sectionError[section],
+    onReset: () => resetSection(section),
+    onSave: () => void saveSection(section),
+  });
 
   return (
     <div className="space-y-4">
-      <div className="card p-6 sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center flex-shrink-0">
-              <UserIcon className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-ink-900">
-                {t("lecturer.settings.profile.title")}
-              </h2>
-              <p className="text-sm text-ink-500 mt-1">
-                {t("lecturer.settings.profile.subtitle")}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={!dirty || saving}
-              onClick={reset}
-            >
-              {t("settings.reset")}
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!dirty || saving}
-              onClick={() => void save()}
-            >
-              <CheckCircleIcon className="h-4 w-4" />
-              {saving ? t("lecturer.settings.saving") : t("settings.save")}
-            </button>
-          </div>
-        </div>
 
-        {message && (
-          <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
-            {message}
-          </p>
-        )}
-        {error && (
-          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
+      <ProfileSection
+        title={t("onboard.step.basic")}
+        desc={t("onboard.step.basic.desc")}
+        {...sectionProps("basic")}
+      >
+        <BasicStep
+          uid={user.uid}
+          value={form}
+          onChange={applyChange}
+          onPersist={persist}
+          showPhone
+          email={email}
+          emailLockedHint={t("settings.profile.emailLocked")}
+          phoneError={phoneFieldError}
+        />
+      </ProfileSection>
 
-        <div className="mt-6 grid gap-5 max-w-3xl">
-          {user?.uid && (
-            <LecturerImageUpload
-              uid={user.uid}
-              label={t("onboard.basic.photo")}
-              helper={t("onboard.basic.photo.helper")}
-              currentUrl={profile?.photoURL}
-              uploadKey="photo"
-              previewAspect="square"
-              cropPreset="profile"
-              priority
-              onChange={async (url) => {
-                if (!user) return;
-                const token = await user.getIdToken();
-                const result = await saveMyLecturerProfile(token, { photoURL: url });
-                setFromResponse(result);
-              }}
-            />
-          )}
+      <ProfileSection
+        title={t("onboard.step.professional")}
+        desc={t("onboard.step.professional.desc")}
+        {...sectionProps("professional")}
+      >
+        <ProfessionalStep
+          value={form}
+          onChange={applyChange}
+          qualificationsRef={qualificationsRef}
+          onQualificationDraftChange={setQualificationDraft}
+        />
+      </ProfileSection>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Field
-              label={t("onboard.basic.displayName")}
-              value={form.displayName}
-              onChange={(e) =>
-                setForm((f) => f && { ...f, displayName: e.target.value })
-              }
-            />
-            <Field
-              label={t("settings.profile.email")}
-              value={email}
-              disabled
-              hint={t("settings.profile.emailLocked")}
-            />
-            <Field
-              label={t("lecturer.settings.phone")}
-              type="tel"
-              value={form.phone}
-              onChange={(e) =>
-                setForm((f) => f && { ...f, phone: e.target.value })
-              }
-            />
-            <SelectField
-              label={t("onboard.basic.district")}
-              value={form.district}
-              onChange={(e) =>
-                setForm((f) => f && { ...f, district: e.target.value })
-              }
-            >
-              <option value="">{t("onboard.basic.district.placeholder")}</option>
-              {SRI_LANKA_DISTRICTS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {localizedLabel(d.name, locale)}
-                </option>
-              ))}
-            </SelectField>
-          </div>
+      <ProfileSection
+        title={t("onboard.step.teaching")}
+        desc={t("onboard.step.teaching.desc")}
+        {...sectionProps("teaching")}
+      >
+        <TeachingStep value={form} onChange={applyChange} />
+      </ProfileSection>
 
-          <div>
-            <TextArea
-              label={t("onboard.basic.bio")}
-              value={form.bio}
-              rows={4}
-              onChange={(e) => setForm((f) => f && { ...f, bio: e.target.value })}
-            />
-            <div className="mt-2 space-y-1">
-              <p className="text-xs text-ink-500">{t("onboard.basic.bio.helper")}</p>
-              <p className="text-xs text-ink-500">
-                {bioLen >= MIN_BIO_LENGTH
-                  ? t("onboard.basic.bio.minMet")
-                  : t("onboard.basic.bio.charsRemaining").replace(
-                      "{count}",
-                      String(Math.max(0, MIN_BIO_LENGTH - bioLen)),
-                    )}
-              </p>
-            </div>
-          </div>
+      <ProfileSection
+        title={t("onboard.step.social")}
+        desc={t("onboard.step.social.desc")}
+        {...sectionProps("social")}
+      >
+        <SocialStep value={form} onChange={applyChange} />
+      </ProfileSection>
 
-          <LanguageChips
-            label={t("onboard.basic.languages")}
-            values={form.languages}
-            onChange={(languages) =>
-              setForm((f) => f && { ...f, languages })
-            }
-          />
-        </div>
-      </div>
-
-      {profile && (
-        <div className="card p-5 sm:p-6">
-          <h3 className="text-sm font-semibold text-ink-900">
-            {t("lecturer.settings.overview.title")}
-          </h3>
-          <dl className="mt-3 grid gap-2 sm:grid-cols-2 text-sm">
-            <div>
-              <dt className="text-ink-500">{t("onboard.prof.mainSubject")}</dt>
-              <dd className="font-medium text-ink-900">
-                {profile.mainSubject?.trim() || "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ink-500">{t("onboard.review.location")}</dt>
-              <dd className="font-medium text-ink-900">
-                {districtLabel
-                  ? localizedLabel(districtLabel.name, locale)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ink-500">{t("lecturer.settings.status")}</dt>
-              <dd className="font-medium text-ink-900 capitalize">
-                {profile.approvalStatus}
-              </dd>
-            </div>
-          </dl>
-          <Link
-            href="/lecturer/onboarding"
-            className="mt-4 inline-flex text-sm font-semibold text-brand-700 hover:text-brand-900"
-          >
-            {t("lecturer.settings.editFullProfile")} →
-          </Link>
-        </div>
-      )}
+      <ProfileSection
+        title={t("onboard.step.banking")}
+        desc={t("onboard.step.banking.desc")}
+        {...sectionProps("banking")}
+      >
+        <BankingStep value={form} onChange={applyChange} />
+      </ProfileSection>
     </div>
+  );
+}
+
+function patchSectionForFields(
+  patch: Partial<LecturerProfile>,
+): ProfileEditSection | null {
+  const keys = Object.keys(patch);
+  if (keys.some((k) => ["photoURL", "coverURL"].includes(k))) return "basic";
+  if (
+    keys.some((k) =>
+      [
+        "displayName",
+        "phone",
+        "bio",
+        "district",
+        "languages",
+      ].includes(k),
+    )
+  ) {
+    return "basic";
+  }
+  if (
+    keys.some((k) =>
+      [
+        "mainSubject",
+        "subCategories",
+        "teachingLevels",
+        "experienceYears",
+        "qualifications",
+        "lecturerType",
+      ].includes(k),
+    )
+  ) {
+    return "professional";
+  }
+  if (
+    keys.some((k) =>
+      [
+        "teachingMethods",
+        "availableDays",
+        "availableSchedule",
+        "availableFrom",
+        "availableTo",
+      ].includes(k),
+    )
+  ) {
+    return "teaching";
+  }
+  if (
+    keys.some((k) =>
+      ["facebook", "youtube", "tiktok", "instagram", "website"].includes(k),
+    )
+  ) {
+    return "social";
+  }
+  if (
+    keys.some((k) =>
+      [
+        "bankAccountHolder",
+        "bankName",
+        "bankBranch",
+        "bankAccountNumber",
+      ].includes(k),
+    )
+  ) {
+    return "banking";
+  }
+  return null;
+}
+
+function ProfileSection({
+  title,
+  desc,
+  children,
+  dirty,
+  saving,
+  message,
+  error,
+  onReset,
+  onSave,
+}: {
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+  dirty: boolean;
+  saving: boolean;
+  message?: string;
+  error?: string;
+  onReset: () => void;
+  onSave: () => void;
+}) {
+  const t = useT();
+
+  return (
+    <section className="card p-6 sm:p-8">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-ink-900">{title}</h3>
+          <p className="mt-1 text-sm text-ink-500">{desc}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!dirty || saving}
+            onClick={onReset}
+          >
+            {t("settings.reset")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!dirty || saving}
+            onClick={onSave}
+          >
+            <CheckCircleIcon className="h-4 w-4" />
+            {saving ? t("lecturer.settings.saving") : t("settings.save")}
+          </button>
+        </div>
+      </header>
+
+      {message && (
+        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
+
+      {children}
+    </section>
   );
 }
 
@@ -405,98 +526,16 @@ function LanguageTab({
   );
 }
 
-function LanguageChips({
-  label,
-  values,
-  onChange,
-}: {
-  label: string;
-  values: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const t = useT();
-  return (
-    <div>
-      <div className="text-sm font-medium text-ink-700 mb-2">{label}</div>
-      <div className="flex flex-wrap gap-2">
-        {LANGUAGE_OPTIONS.map((code) => {
-          const on = values.includes(code);
-          return (
-            <button
-              key={code}
-              type="button"
-              onClick={() =>
-                onChange(
-                  on ? values.filter((x) => x !== code) : [...values, code],
-                )
-              }
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                on
-                  ? "border-brand-600 bg-brand-50 text-brand-800"
-                  : "border-ink-200 bg-white text-ink-700 hover:border-ink-300"
-              }`}
-            >
-              {on && <CheckIcon className="h-3.5 w-3.5" />}
-              {t(`onboard.languages.${code}`)}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function Field({
   label,
-  hint,
   ...rest
 }: {
   label: string;
-  hint?: string;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
       <span className="text-sm font-medium text-ink-700 mb-1.5 block">{label}</span>
-      <input
-        className={`input-base ${rest.disabled ? "bg-ink-50 text-ink-500" : ""}`}
-        {...rest}
-      />
-      {hint && <p className="text-xs text-ink-500 mt-1.5">{hint}</p>}
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  children,
-  ...rest
-}: {
-  label: string;
-  children: React.ReactNode;
-} & React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-ink-700 mb-1.5 block">{label}</span>
-      <select className="input-base select-base" {...rest}>
-        {children}
-      </select>
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  helper,
-  ...rest
-}: {
-  label: string;
-  helper?: string;
-} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-ink-700 mb-2 block">{label}</span>
-      <textarea className="textarea-base" {...rest} />
-      {helper && <p className="text-xs text-ink-500 mt-1.5">{helper}</p>}
+      <input className="input-base" {...rest} />
     </label>
   );
 }

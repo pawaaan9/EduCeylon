@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -39,8 +40,23 @@ export function CourseDetailClient({
       <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
         <div
           className="aspect-[16/9] w-full rounded-2xl shadow-card relative overflow-hidden"
-          style={{ background: course.thumbnailGradient }}
+          style={
+            course.thumbnailURL
+              ? undefined
+              : { background: course.thumbnailGradient }
+          }
         >
+          {course.thumbnailURL ? (
+            <Image
+              src={course.thumbnailURL}
+              alt={title}
+              fill
+              sizes="(max-width: 1024px) 100vw, 768px"
+              className="object-cover"
+              unoptimized
+              priority
+            />
+          ) : null}
           <button className="absolute inset-0 flex items-center justify-center text-white hover:scale-105 transition-transform">
             <PlayCircleIcon className="h-20 w-20 drop-shadow-2xl" />
           </button>

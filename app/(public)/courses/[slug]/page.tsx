@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getCourseBySlug, getLecturerBySlug, COURSES } from "@/lib/data/mock";
+import { getPublicCourseBySlug } from "@/lib/server/public-courses";
 import { CourseDetailClient } from "./CourseDetailClient";
 
-export function generateStaticParams() {
-  return COURSES.map((c) => ({ slug: c.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function CourseDetailPage({
   params,
@@ -13,9 +11,8 @@ export default async function CourseDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const course = getCourseBySlug(slug);
-  if (!course) return notFound();
-  const lecturer = getLecturerBySlug(course.lecturer.slug) ?? null;
+  const result = await getPublicCourseBySlug(slug);
+  if (!result) return notFound();
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -28,7 +25,7 @@ export default async function CourseDetailPage({
           Courses
         </Link>
       </nav>
-      <CourseDetailClient course={course} lecturer={lecturer} />
+      <CourseDetailClient course={result.course} lecturer={result.lecturer} />
     </div>
   );
 }

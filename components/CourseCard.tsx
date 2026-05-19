@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { Course } from "@/lib/data/types";
@@ -32,8 +33,22 @@ export function CourseCard({ course }: { course: Course }) {
     >
       <div
         className="relative aspect-[16/9] w-full overflow-hidden"
-        style={{ background: course.thumbnailGradient }}
+        style={
+          course.thumbnailURL
+            ? undefined
+            : { background: course.thumbnailGradient }
+        }
       >
+        {course.thumbnailURL ? (
+          <Image
+            src={course.thumbnailURL}
+            alt={title}
+            fill
+            sizes="(max-width: 640px) 100vw, 400px"
+            className="object-cover"
+            unoptimized
+          />
+        ) : null}
         <div className="absolute inset-0 flex items-center justify-center text-white/90">
           <PlayCircleIcon className="h-14 w-14 drop-shadow" />
         </div>
@@ -74,7 +89,9 @@ export function CourseCard({ course }: { course: Course }) {
           </div>
           <div className="text-right">
             <div className="text-lg font-bold text-brand-700">
-              {LKR.format(course.price)}
+              {course.price > 0
+                ? LKR.format(course.price)
+                : t("lecturer.create.access.free")}
             </div>
           </div>
         </div>

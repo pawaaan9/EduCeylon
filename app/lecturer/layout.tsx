@@ -30,8 +30,18 @@ export default function LecturerLayout({
       heading: "Lecturer Portal",
       items: [
         { href: "/lecturer", label: t("lecturer.nav.dashboard"), icon: HomeIcon },
-        { href: "/lecturer/courses", label: t("lecturer.nav.courses"), icon: BookIcon },
-        { href: "/lecturer/create", label: t("lecturer.nav.create"), icon: PlusIcon },
+        {
+          href: "/lecturer/courses",
+          label: t("lecturer.nav.courses"),
+          icon: BookIcon,
+          exact: true,
+        },
+        {
+          href: "/lecturer/create",
+          label: t("lecturer.nav.create"),
+          icon: PlusIcon,
+          alsoActiveWhen: (pathname) => pathname.startsWith("/lecturer/create"),
+        },
         { href: "/lecturer/live", label: t("lecturer.nav.live"), icon: CalendarIcon },
       ],
     },

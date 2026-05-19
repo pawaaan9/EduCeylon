@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ImageCropModal } from "@/components/ImageCropModal";
-import { UploadIcon } from "@/components/icons";
+import { CloseIcon, UploadIcon } from "@/components/icons";
 import { useT } from "@/lib/i18n/I18nProvider";
 import {
   IMAGE_CROP_PRESETS,
@@ -35,7 +35,7 @@ export function LecturerImageUpload({
   helper?: string;
   currentUrl?: string;
   uploadKey: UploadKey;
-  onChange: (url: string) => void | Promise<void>;
+  onChange: (url: string | undefined) => void | Promise<void>;
   previewAspect: PreviewAspect;
   /** When set, opens a crop step before upload. */
   cropPreset?: ImageCropPresetKey;
@@ -50,14 +50,20 @@ export function LecturerImageUpload({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState("image.jpg");
 
+  const preset = cropPreset ? IMAGE_CROP_PRESETS[cropPreset] : null;
+
   useEffect(() => {
     return () => {
-      if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+      if (cropSrc?.startsWith("blob:") && cropSrc !== currentUrl) {
+        URL.revokeObjectURL(cropSrc);
+      }
     };
-  }, [cropSrc]);
+  }, [cropSrc, currentUrl]);
 
   function closeCrop() {
-    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    if (cropSrc?.startsWith("blob:") && cropSrc !== currentUrl) {
+      URL.revokeObjectURL(cropSrc);
+    }
     setCropSrc(null);
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -68,11 +74,17 @@ export function LecturerImageUpload({
     setPendingName(`${base}.jpg`);
 
     if (cropPreset) {
-      const url = URL.createObjectURL(file);
-      setCropSrc(url);
+      setCropSrc(URL.createObjectURL(file));
       return;
     }
     void uploadFile(file);
+  }
+
+  function openRecrop() {
+    if (!currentUrl || !cropPreset) return;
+    setErr(null);
+    setPendingName(`${uploadKey}.jpg`);
+    setCropSrc(currentUrl);
   }
 
   async function uploadFile(file: File) {
@@ -93,7 +105,10 @@ export function LecturerImageUpload({
     }
   }
 
-  const preset = cropPreset ? IMAGE_CROP_PRESETS[cropPreset] : null;
+  function handleRemove() {
+    void onChange(undefined);
+    setErr(null);
+  }
 
   return (
     <>
@@ -104,16 +119,27 @@ export function LecturerImageUpload({
             className={`relative overflow-hidden rounded-xl border border-dashed border-ink-300 bg-ink-50 ${PREVIEW_CLASS[previewAspect]}`}
           >
             {currentUrl ? (
-              <Image
-                src={currentUrl}
-                alt={label}
-                fill
-                sizes={previewAspect === "cover" ? "(max-width: 768px) 100vw, 448px" : "128px"}
-                className="object-cover"
-                unoptimized
-                priority={priority}
-                loading={priority ? "eager" : undefined}
-              />
+              <>
+                <Image
+                  src={currentUrl}
+                  alt={label}
+                  fill
+                  sizes={previewAspect === "cover" ? "(max-width: 768px) 100vw, 448px" : "128px"}
+                  className="object-cover"
+                  unoptimized
+                  priority={priority}
+                  loading={priority ? "eager" : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  disabled={uploading || Boolean(cropSrc)}
+                  className="absolute top-1.5 right-1.5 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white shadow-sm hover:bg-black/80 disabled:opacity-50"
+                  aria-label={t("onboard.upload.remove")}
+                >
+                  <CloseIcon className="h-3.5 w-3.5" />
+                </button>
+              </>
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center text-ink-400">
                 <UploadIcon className="h-6 w-6" />
@@ -132,19 +158,31 @@ export function LecturerImageUpload({
                 if (f) onFileChosen(f);
               }}
             />
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading || Boolean(cropSrc)}
-              className="btn btn-secondary"
-            >
-              <UploadIcon className="h-4 w-4" />
-              {uploading
-                ? t("onboard.upload.uploading")
-                : currentUrl
-                ? t("onboard.upload.replace")
-                : t("onboard.upload.select")}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading || Boolean(cropSrc)}
+                className="btn btn-secondary"
+              >
+                <UploadIcon className="h-4 w-4" />
+                {uploading
+                  ? t("onboard.upload.uploading")
+                  : currentUrl
+                    ? t("onboard.upload.replace")
+                    : t("onboard.upload.select")}
+              </button>
+              {cropPreset && currentUrl && (
+                <button
+                  type="button"
+                  onClick={openRecrop}
+                  disabled={uploading || Boolean(cropSrc)}
+                  className="btn btn-secondary"
+                >
+                  {t("onboard.crop.action")}
+                </button>
+              )}
+            </div>
             {helper && <p className="mt-2 text-xs text-ink-500">{helper}</p>}
             {err && <p className="mt-2 text-xs text-rose-600">{err}</p>}
           </div>

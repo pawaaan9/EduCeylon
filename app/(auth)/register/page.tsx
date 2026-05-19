@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { GoogleIcon, GraduationIcon, MicIcon } from "@/components/icons";
 import { PasswordField } from "@/components/PasswordField";
+import { SriLankaPhoneField } from "@/components/SriLankaPhoneField";
 import {
   dashboardPathForRole,
   describeAuthError,
@@ -13,6 +14,7 @@ import {
   signUpWithEmail,
   type AppRole,
 } from "@/lib/firebase/auth";
+import { isValidSriLankaPhone, normalizeSriLankaPhone } from "@/lib/phone/sri-lanka";
 
 type Role = Extract<AppRole, "student" | "lecturer">;
 
@@ -65,7 +67,7 @@ function RegisterForm() {
     if (password.length < 6) {
       return t("auth.error.weakPassword");
     }
-    if (isLecturer && !/^[+\d][\d\s\-()]{6,}$/.test(phone.trim())) {
+    if (isLecturer && !isValidSriLankaPhone(phone)) {
       return t("auth.error.invalidPhone");
     }
     return null;
@@ -86,7 +88,7 @@ function RegisterForm() {
         email,
         password,
         role,
-        phone: isLecturer ? phone : undefined,
+        phone: isLecturer ? normalizeSriLankaPhone(phone) : undefined,
       });
       router.push(
         profile.role === "lecturer"
@@ -176,13 +178,10 @@ function RegisterForm() {
           required
         />
         {isLecturer && (
-          <Field
+          <SriLankaPhoneField
             label={t("auth.phone")}
-            type="tel"
-            placeholder="+94 7X XXX XXXX"
-            autoComplete="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={setPhone}
             required
           />
         )}

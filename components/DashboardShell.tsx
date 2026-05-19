@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
+import { SignOutConfirmDialog } from "./SignOutConfirmDialog";
 import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 import {
   BellIcon,
@@ -20,6 +21,10 @@ export type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  /** When true, only `/href` matches — not child paths like `/href/123`. */
+  exact?: boolean;
+  /** Extra pathnames that should highlight this item (e.g. course editor under create). */
+  alsoActiveWhen?: (pathname: string) => boolean;
 };
 
 export type NavSection = {
@@ -46,15 +51,6 @@ export function DashboardShell({
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const { user: authUser, profile, signOut: authSignOut } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!signOutConfirmOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSignOutConfirmOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [signOutConfirmOpen]);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -188,40 +184,11 @@ export function DashboardShell({
         </div>
       )}
 
-      {signOutConfirmOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            aria-hidden
-            onClick={() => setSignOutConfirmOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sign-out-dialog-title"
-            className="relative w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-xl"
-          >
-            <h2 id="sign-out-dialog-title" className="text-lg font-semibold text-ink-900">
-              {t("dashboard.signOutConfirm.title")}
-            </h2>
-            <p className="mt-2 text-sm text-ink-600 leading-relaxed">
-              {t("dashboard.signOutConfirm.message")}
-            </p>
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                className="btn btn-secondary w-full sm:w-auto"
-                onClick={() => setSignOutConfirmOpen(false)}
-              >
-                {t("action.cancel")}
-              </button>
-              <button type="button" className="btn btn-primary w-full sm:w-auto" onClick={handleSignOut}>
-                {t("action.signOut")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SignOutConfirmDialog
+        open={signOutConfirmOpen}
+        onClose={() => setSignOutConfirmOpen(false)}
+        onConfirm={handleSignOut}
+      />
 
       <div className="flex min-h-screen flex-col min-w-0 lg:pl-72">
         <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-ink-200 bg-white">
@@ -302,20 +269,34 @@ export function DashboardShell({
 /** Longest matching nav href so `/admin` is not active on `/admin/students`. */
 function getActiveNavHref(pathname: string, sections: NavSection[]): string | null {
   let match: string | null = null;
-  let matchLen = -1;
+  let matchScore = -1;
   for (const section of sections) {
     for (const item of section.items) {
-      const href = item.href;
-      const isMatch =
-        pathname === href ||
-        (href !== "/" && pathname.startsWith(`${href}/`));
-      if (isMatch && href.length > matchLen) {
-        match = href;
-        matchLen = href.length;
+      const score = navItemMatchScore(pathname, item);
+      if (score > matchScore) {
+        match = item.href;
+        matchScore = score;
       }
     }
   }
   return match;
+}
+
+function navItemMatchScore(pathname: string, item: NavItem): number {
+  if (item.alsoActiveWhen?.(pathname)) {
+    return 10_000 + item.href.length;
+  }
+  const href = item.href;
+  if (item.exact) {
+    if (pathname === href || pathname === `${href}/`) {
+      return 5_000 + href.length;
+    }
+    return -1;
+  }
+  const isMatch =
+    pathname === href ||
+    (href !== "/" && pathname.startsWith(`${href}/`));
+  return isMatch ? href.length : -1;
 }
 
 function SidebarNav({

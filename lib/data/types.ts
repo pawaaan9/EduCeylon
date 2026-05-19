@@ -67,6 +67,7 @@ export type Course = {
   featured?: boolean;
   trending?: boolean;
   thumbnailGradient: string;
+  thumbnailURL?: string;
   lecturer: Pick<Lecturer, "id" | "slug" | "name" | "title">;
   modules: CourseModule[];
   status?: "published" | "draft" | "pending" | "rejected";

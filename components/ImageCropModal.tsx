@@ -73,11 +73,6 @@ export function ImageCropModal({
 
   if (!open) return null;
 
-  const titleKey =
-    preset.key === "profile" ? "onboard.crop.profile" : "onboard.crop.cover";
-  const hintKey =
-    preset.key === "profile" ? "onboard.crop.profile.hint" : "onboard.crop.cover.hint";
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" aria-hidden onClick={() => !applying && onClose()} />
@@ -90,9 +85,9 @@ export function ImageCropModal({
         <div className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
           <div>
             <h2 id="image-crop-title" className="text-lg font-semibold text-ink-900">
-              {t(titleKey)}
+              {t(preset.titleKey)}
             </h2>
-            <p className="mt-0.5 text-xs text-ink-500">{t(hintKey)}</p>
+            <p className="mt-0.5 text-xs text-ink-500">{t(preset.hintKey)}</p>
           </div>
           <button
             type="button"

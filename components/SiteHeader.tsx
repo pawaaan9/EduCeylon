@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "./Logo";
+import { SignOutConfirmDialog } from "./SignOutConfirmDialog";
 import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { MenuIcon, CloseIcon } from "./icons";
@@ -11,7 +13,9 @@ import { dashboardPathForRole } from "@/lib/firebase/auth";
 
 export function SiteHeader() {
   const t = useT();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const { profile, loading, signOut } = useAuth();
   const dashboardHref = profile ? dashboardPathForRole(profile.role) : null;
 
@@ -21,6 +25,20 @@ export function SiteHeader() {
     { href: "/lecturers", label: t("nav.lecturers") },
     { href: "/about", label: t("nav.about") },
   ];
+
+  function requestSignOut() {
+    setOpen(false);
+    setSignOutConfirmOpen(true);
+  }
+
+  async function handleSignOut() {
+    setSignOutConfirmOpen(false);
+    try {
+      await signOut();
+    } finally {
+      router.push("/login");
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
@@ -47,7 +65,7 @@ export function SiteHeader() {
               <Link href={dashboardHref} className="btn btn-ghost">
                 {t("nav.dashboard")}
               </Link>
-              <button onClick={() => signOut()} className="btn btn-primary">
+              <button type="button" onClick={requestSignOut} className="btn btn-primary">
                 {t("action.signOut")}
               </button>
             </>
@@ -84,7 +102,7 @@ export function SiteHeader() {
               <button
                 onClick={() => setOpen(false)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-ink-100"
-                aria-label="Close menu"
+                aria-label="Close"
               >
                 <CloseIcon className="h-5 w-5" />
               </button>
@@ -112,13 +130,7 @@ export function SiteHeader() {
                   >
                     {t("nav.dashboard")}
                   </Link>
-                  <button
-                    onClick={() => {
-                      setOpen(false);
-                      signOut();
-                    }}
-                    className="btn btn-primary"
-                  >
+                  <button type="button" onClick={requestSignOut} className="btn btn-primary">
                     {t("action.signOut")}
                   </button>
                 </>
@@ -136,6 +148,12 @@ export function SiteHeader() {
           </div>
         </div>
       )}
+
+      <SignOutConfirmDialog
+        open={signOutConfirmOpen}
+        onClose={() => setSignOutConfirmOpen(false)}
+        onConfirm={handleSignOut}
+      />
     </header>
   );
 }

@@ -53,13 +53,16 @@ export function LecturerProfileClient({
             />
           )}
         </div>
-        <div className="relative z-10 bg-white px-6 sm:px-10 pb-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between -mt-12">
-            <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-              <div className="shrink-0 rounded-full ring-4 ring-white shadow-lg z-20">
-                <Avatar name={lecturer.name} src={lecturer.photoURL} size={96} />
-              </div>
-              <div className="min-w-0 pt-1">
+        <div className="relative z-10 bg-white px-6 sm:px-10">
+          <div className="absolute left-6 sm:left-10 top-3 sm:top-4 z-20 -translate-y-[38%]">
+            <div className="rounded-full ring-4 ring-white shadow-lg">
+              <Avatar name={lecturer.name} src={lecturer.photoURL} size={96} />
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            <div className="flex w-full flex-col gap-2 py-2 pl-28 sm:flex-row sm:items-center sm:justify-between sm:py-2.5 sm:pl-[7.5rem]">
+              <div className="min-w-0 flex-1 text-left">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink-900 flex flex-wrap items-center gap-2">
                   {lecturer.name}
                   {lecturer.verified && (
@@ -71,8 +74,7 @@ export function LecturerProfileClient({
                   <p className="text-sm text-ink-500 mt-0.5">{districtLabel}</p>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 w-full sm:max-w-xs sm:shrink-0 sm:ml-auto">
+              <div className="grid w-full shrink-0 grid-cols-3 gap-2 sm:max-w-xs sm:ml-4">
               <PillStat compact
                 label={t("lecturers.courses")}
                 value={lecturer.courses.toString()}
@@ -96,6 +98,7 @@ export function LecturerProfileClient({
                   ) : undefined
                 }
               />
+              </div>
             </div>
           </div>
         </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CourseCard } from "@/components/CourseCard";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { CATEGORIES, COURSES } from "@/lib/data/mock";
+import { fetchPublicCourses } from "@/lib/api/public-courses";
+import { MAIN_CATEGORY_OPTIONS } from "@/lib/courses/types";
 import { SearchIcon } from "@/components/icons";
-import type { CategoryKey, Level, CourseType } from "@/lib/data/types";
+import type { CategoryKey, Level, Course, CourseType } from "@/lib/data/types";
 
 const LEVELS: Level[] = ["beginner", "intermediate", "advanced", "allLevels"];
 const TYPES: CourseType[] = ["recorded", "live", "hybrid"];
@@ -16,10 +17,29 @@ export default function CoursesPage() {
   const [category, setCategory] = useState<CategoryKey | "all">("all");
   const [level, setLevel] = useState<Level | "all">("all");
   const [type, setType] = useState<CourseType | "all">("all");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchPublicCourses();
+        if (!cancelled) setCourses(data);
+      } catch {
+        if (!cancelled) setCourses([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return COURSES.filter((c) => {
+    return courses.filter((c) => {
       if (category !== "all" && c.category !== category) return false;
       if (level !== "all" && c.level !== level) return false;
       if (type !== "all" && c.type !== type) return false;
@@ -31,7 +51,7 @@ export default function CoursesPage() {
         c.slug.includes(q)
       );
     });
-  }, [query, category, level, type, locale]);
+  }, [query, category, level, type, locale, courses]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
@@ -70,9 +90,9 @@ export default function CoursesPage() {
               onChange={(v) => setCategory(v as CategoryKey | "all")}
               options={[
                 { value: "all", label: t("courses.filter.all") },
-                ...CATEGORIES.map((c) => ({
-                  value: c.key,
-                  label: t(`category.${c.key}`),
+                ...MAIN_CATEGORY_OPTIONS.map((c) => ({
+                  value: c,
+                  label: t(`category.${c}`),
                 })),
               ]}
             />
@@ -104,7 +124,11 @@ export default function CoursesPage() {
               {t("courses.results")}
             </p>
           </div>
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="card p-12 text-center text-sm text-ink-500">
+              Loading…
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="card p-12 text-center text-ink-500">
               {t("courses.empty")}
             </div>
@@ -143,6 +167,7 @@ function FilterGroup({
           return (
             <button
               key={o.value}
+              type="button"
               onClick={() => onChange(o.value)}
               className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
                 selected

@@ -36,8 +36,8 @@ export function LecturerCard({ lecturer }: { lecturer: Lecturer }) {
         )}
       </div>
 
-      <div className="flex flex-col items-center px-4 pb-4 pt-12 text-center">
-        <div className="relative z-10 -mt-[52px] mb-1 rounded-full ring-4 ring-white shadow-md">
+      <div className="flex flex-col items-center px-4 pb-4 pt-10 text-center">
+        <div className="relative z-10 -mt-[62px] mb-0.5 rounded-full ring-4 ring-white shadow-md">
           <Avatar
             name={lecturer.name}
             src={lecturer.photoURL}
@@ -45,7 +45,7 @@ export function LecturerCard({ lecturer }: { lecturer: Lecturer }) {
           />
         </div>
 
-        <h3 className="mt-2 text-base font-semibold text-ink-900 flex items-center justify-center gap-1">
+        <h3 className="mt-1.5 text-base font-semibold text-ink-900 flex items-center justify-center gap-1">
           {lecturer.name}
           {lecturer.verified && (
             <CheckCircleIcon className="h-4 w-4 text-brand-600 shrink-0" />
