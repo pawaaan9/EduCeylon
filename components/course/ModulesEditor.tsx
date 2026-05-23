@@ -9,6 +9,7 @@ import {
   TrashIcon,
 } from "@/components/icons";
 import { CourseFileUpload } from "@/components/course/CourseFileUpload";
+import { DateChipPicker } from "@/components/DateChipPicker";
 import {
   LESSON_TYPE_OPTIONS,
   newClientId,
@@ -461,11 +462,10 @@ function LiveSessionFields({
         />
       </Labeled>
       <Labeled label={t("lecturer.create.live.date")}>
-        <input
-          type="date"
-          className="input-base"
-          value={value.date ?? ""}
-          onChange={(e) => patch({ date: e.target.value })}
+        <DateChipPicker
+          label={t("lecturer.create.live.date")}
+          value={value.date}
+          onChange={(date) => patch({ date })}
         />
       </Labeled>
       <Labeled label={t("lecturer.create.live.time")}>

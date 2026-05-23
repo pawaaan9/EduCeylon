@@ -61,7 +61,7 @@ export default function LecturerCoursesPage() {
         subtitle={t("lecturer.courses.subtitle")}
         actions={
           <Link
-            href="/lecturer/create"
+            href="/lecturer/create?new=1"
             className="btn bg-white text-brand-700 hover:bg-white/90"
           >
             <PlusIcon className="h-4 w-4" /> {t("lecturer.courses.new")}
@@ -106,6 +106,10 @@ function CourseCard({
     (acc, m) => acc + (m.lessons?.length ?? 0),
     0,
   );
+  const metaLabel =
+    course.courseType === "live"
+      ? t("lecturer.courses.liveClass")
+      : `${course.modules.length} ${t("lecturer.courses.modules")} · ${totalLessons} ${t("lecturer.courses.lessons")}`;
 
   return (
     <div className="card overflow-hidden flex flex-col">
@@ -134,10 +138,7 @@ function CourseCard({
           <span className={`badge ${STATUS_BADGE[course.status]}`}>
             {t(`lecturer.courses.status${capitalize(course.status)}`)}
           </span>
-          <span className="text-xs text-ink-500">
-            {course.modules.length} {t("lecturer.courses.modules")} ·{" "}
-            {totalLessons} {t("lecturer.courses.lessons")}
-          </span>
+          <span className="text-xs text-ink-500">{metaLabel}</span>
         </div>
         <h3 className="font-semibold text-ink-900 line-clamp-2">
           {course.title.trim() || t("lecturer.courses.untitled")}
@@ -177,7 +178,7 @@ function EmptyState() {
       <p className="mt-1 text-sm text-ink-500 max-w-md mx-auto">
         {t("lecturer.courses.empty.subtitle")}
       </p>
-      <Link href="/lecturer/create" className="btn btn-primary mt-6 inline-flex">
+      <Link href="/lecturer/create?new=1" className="btn btn-primary mt-6 inline-flex">
         <PlusIcon className="h-4 w-4" /> {t("lecturer.courses.create")}
       </Link>
     </div>

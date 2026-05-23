@@ -140,6 +140,7 @@ export function CourseAssetUpload({
                 sizes="(max-width: 768px) 100vw, 600px"
                 className="object-cover"
                 unoptimized
+                priority={kind === "thumbnail"}
               />
               <button
                 type="button"

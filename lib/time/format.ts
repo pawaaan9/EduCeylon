@@ -36,3 +36,35 @@ export function formatTime12(value: string | undefined): string {
   if (!p) return "—";
   return `${p.hour12}:${String(p.minute).padStart(2, "0")} ${p.period}`;
 }
+
+function timeToMinutes(value: string | undefined): number | null {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hStr, mStr] = value.split(":");
+  const h = parseInt(hStr!, 10);
+  const m = parseInt(mStr!, 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+/** Minutes between start and end on the same day; null if invalid or end ≤ start. */
+export function scheduleDurationMinutes(
+  start: string,
+  end: string,
+): number | null {
+  const from = timeToMinutes(start);
+  const to = timeToMinutes(end);
+  if (from === null || to === null || to <= from) return null;
+  return to - from;
+}
+
+export function formatScheduleDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h} hr ${m} min`;
+  if (h > 0) return `${h} hr`;
+  return `${m} min`;
+}
+
+export function formatTimeRange12(start: string, end: string): string {
+  return `${formatTime12(start)} – ${formatTime12(end)}`;
+}

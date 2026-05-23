@@ -2,11 +2,11 @@
 
 export type CourseStatus = "draft" | "pending" | "published" | "archived";
 
-export type CourseVisibility = "public" | "private" | "draft";
+export type CourseVisibility = "draft" | "publish";
 
 export type CourseAccessType = "free" | "paid";
 
-export type CourseType = "recorded" | "live" | "hybrid";
+export type CourseType = "recorded" | "live";
 
 export type CourseLanguage = "si" | "ta" | "en";
 
@@ -60,6 +60,38 @@ export type CourseModule = {
   lessons: Lesson[];
 };
 
+export type WeeklyDay =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export const WEEKLY_DAY_OPTIONS: WeeklyDay[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+export type WeeklyScheduleSlot = {
+  id: string;
+  day: WeeklyDay;
+  /** 24h "HH:MM" */
+  startTime: string;
+  /** 24h "HH:MM" */
+  endTime: string;
+  /** e.g. "Theory class", "Paper class" */
+  title: string;
+  description?: string;
+  meetingURL?: string;
+};
+
 export type LecturerCourse = {
   id: string;
   lecturerId: string;
@@ -84,15 +116,31 @@ export type LecturerCourse = {
   coverURL?: string;
 
   modules: CourseModule[];
+  /** Weekly recurring schedule (live courses). */
+  weeklySchedule?: WeeklyScheduleSlot[];
 
   price?: number;
   discountPrice?: number;
   startDate?: string;
   endDate?: string;
+  /** Live courses — max students who can enroll. */
+  enrollmentSlots?: number;
 
   status: CourseStatus;
   publishedAt?: string;
   createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminCourseRow = {
+  id: string;
+  title: string;
+  lecturerId: string;
+  lecturerName: string;
+  status: CourseStatus;
+  accessType: CourseAccessType;
+  price: number;
+  thumbnailURL?: string;
   updatedAt?: string;
 };
 
@@ -106,17 +154,28 @@ export const TEACHING_LEVEL_OPTIONS: CourseTeachingLevel[] = [
 
 export const COURSE_LANGUAGE_OPTIONS: CourseLanguage[] = ["si", "ta", "en"];
 
-export const COURSE_TYPE_OPTIONS: CourseType[] = [
-  "recorded",
-  "live",
-  "hybrid",
-];
+export const COURSE_TYPE_OPTIONS: CourseType[] = ["recorded", "live"];
+
+/** Map legacy Firestore values (e.g. hybrid) to recorded or live. */
+export function normalizeCourseType(value: unknown): CourseType {
+  if (value === "live") return "live";
+  return "recorded";
+}
 
 export const COURSE_VISIBILITY_OPTIONS: CourseVisibility[] = [
-  "public",
-  "private",
   "draft",
+  "publish",
 ];
+
+/** Map legacy Firestore values to the current draft / publish model. */
+export function normalizeVisibility(value: unknown): CourseVisibility {
+  if (value === "publish" || value === "public") return "publish";
+  return "draft";
+}
+
+export function isPublishedVisibility(value: unknown): boolean {
+  return value === "publish" || value === "public";
+}
 
 export const COURSE_ACCESS_OPTIONS: CourseAccessType[] = ["free", "paid"];
 
@@ -152,6 +211,7 @@ export function emptyCourse(uid: string): Omit<LecturerCourse, "id"> {
     visibility: "draft",
     accessType: "free",
     modules: [],
+    weeklySchedule: [],
     status: "draft",
   };
 }

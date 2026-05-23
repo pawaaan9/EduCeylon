@@ -9,7 +9,7 @@ import { SearchIcon } from "@/components/icons";
 import type { CategoryKey, Level, Course, CourseType } from "@/lib/data/types";
 
 const LEVELS: Level[] = ["beginner", "intermediate", "advanced", "allLevels"];
-const TYPES: CourseType[] = ["recorded", "live", "hybrid"];
+const TYPES: CourseType[] = ["recorded", "live"];
 
 export default function CoursesPage() {
   const { t, locale } = useI18n();

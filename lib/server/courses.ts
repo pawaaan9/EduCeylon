@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdmin, getStorageBucketName } from "./firebase-admin";
 import { coursePublicSlug } from "@/lib/courses/slug";
-import type { LecturerCourse } from "@/lib/courses/types";
+import { normalizeVisibility, normalizeCourseType, type LecturerCourse } from "@/lib/courses/types";
 
 export const LECTURER_COURSES = "lecturerCourses";
 
@@ -46,10 +46,8 @@ export function normalizeCourse(id: string, data: Record<string, unknown>): Lect
     teachingLevel:
       (data.teachingLevel as LecturerCourse["teachingLevel"]) ?? undefined,
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-    courseType:
-      (data.courseType as LecturerCourse["courseType"]) ?? "recorded",
-    visibility:
-      (data.visibility as LecturerCourse["visibility"]) ?? "draft",
+    courseType: normalizeCourseType(data.courseType),
+    visibility: normalizeVisibility(data.visibility),
     accessType:
       (data.accessType as LecturerCourse["accessType"]) ?? "free",
     thumbnailURL: (data.thumbnailURL as string | undefined) ?? undefined,
@@ -57,11 +55,18 @@ export function normalizeCourse(id: string, data: Record<string, unknown>): Lect
     modules: Array.isArray(data.modules)
       ? (data.modules as LecturerCourse["modules"])
       : [],
+    weeklySchedule: Array.isArray(data.weeklySchedule)
+      ? (data.weeklySchedule as LecturerCourse["weeklySchedule"])
+      : [],
     price: typeof data.price === "number" ? data.price : undefined,
     discountPrice:
       typeof data.discountPrice === "number" ? data.discountPrice : undefined,
     startDate: (data.startDate as string | undefined) ?? undefined,
     endDate: (data.endDate as string | undefined) ?? undefined,
+    enrollmentSlots:
+      typeof data.enrollmentSlots === "number" && data.enrollmentSlots > 0
+        ? Math.floor(data.enrollmentSlots)
+        : undefined,
     status: (data.status as LecturerCourse["status"]) ?? "draft",
     publishedAt: timestampToIso(data.publishedAt),
     createdAt: timestampToIso(data.createdAt),
@@ -96,6 +101,17 @@ export async function listCoursesByLecturer(
   return rows;
 }
 
+/** Admin: all courses across lecturers. */
+export async function listAllCourses(): Promise<LecturerCourse[]> {
+  const { db } = getAdmin();
+  const snap = await db.collection(LECTURER_COURSES).get();
+  const rows = snap.docs.map((d) =>
+    normalizeCourse(d.id, d.data() as Record<string, unknown>),
+  );
+  rows.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+  return rows;
+}
+
 export async function getCourseById(
   uid: string,
   courseId: string,
@@ -125,6 +141,7 @@ export async function createCourse(
     visibility: patch.visibility ?? "draft",
     accessType: patch.accessType ?? "free",
     modules: patch.modules ?? [],
+    weeklySchedule: patch.weeklySchedule ?? [],
     status: patch.status ?? "draft",
     createdAt: now,
     updatedAt: now,
@@ -180,7 +197,7 @@ export async function publishCourse(
     coursePublicSlug(current.title || "course", courseId);
   return updateCourse(uid, courseId, {
     status: "published",
-    visibility: "public",
+    visibility: "publish",
     publishedAt: new Date().toISOString(),
     slug,
   });

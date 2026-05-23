@@ -104,17 +104,5 @@ export function syncLegacyAvailability(
 }
 
 export function isTeachingScheduleComplete(profile: TeachingScheduleFields): boolean {
-  if (profile.teachingMethods.length === 0 || profile.availableDays.length === 0) {
-    return false;
-  }
-
-  const schedule = resolveSchedule(
-    profile.availableDays,
-    profile.availableSchedule,
-    profile,
-  );
-
-  return profile.availableDays.every((day) =>
-    isValidDaySlot(schedule[day as DayKey]),
-  );
+  return profile.teachingMethods.length > 0;
 }
