@@ -12,6 +12,7 @@ import {
 } from "@/components/icons";
 import { CourseAssetUpload } from "@/components/course/CourseAssetUpload";
 import { CourseTagInput } from "@/components/course/CourseTagInput";
+import { DateChipPicker } from "@/components/DateChipPicker";
 import { ModulesEditor } from "@/components/course/ModulesEditor";
 import { WeeklyScheduleEditor } from "@/components/course/WeeklyScheduleEditor";
 import {
@@ -25,14 +26,13 @@ import {
 import {
   COURSE_ACCESS_OPTIONS,
   COURSE_LANGUAGE_OPTIONS,
-  COURSE_VISIBILITY_OPTIONS,
+  COURSE_TYPE_OPTIONS,
   MAIN_CATEGORY_OPTIONS,
   TEACHING_LEVEL_OPTIONS,
   type CourseAccessType,
   type CourseLanguage,
   type CourseTeachingLevel,
   type CourseType,
-  type CourseVisibility,
   emptyCourse,
   type LecturerCourse,
 } from "@/lib/courses/types";
@@ -50,14 +50,12 @@ const STEPS: { key: StepKey; labelKey: string }[] = [
   { key: "review", labelKey: "lecturer.create.step.review" },
 ];
 
-const AUTOSAVE_DEBOUNCE_MS = 1500;
+const CREATE_DRAFT_STORAGE_KEY = "educeylon:lecturer-create-draft-id";
 
 type PendingAssets = {
   thumbnail?: File;
   cover?: File;
 };
-
-const CREATE_DRAFT_STORAGE_KEY = "educeylon:lecturer-create-draft-id";
 
 export function CourseEditor({
   courseId: initialCourseId,
@@ -84,8 +82,6 @@ export function CourseEditor({
   const [publishing, setPublishing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const savedSnapshotRef = useRef<string>("");
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inflightRef = useRef(false);
   const draftSavingRef = useRef(false);
   const persistedIdRef = useRef<string | null>(initialCourseId ?? null);
   const pendingAssetsRef = useRef<PendingAssets>({});
@@ -216,56 +212,8 @@ export function CourseEditor({
     [user, flushPendingAssets],
   );
 
-  const persist = useCallback(
-    async (patch: Partial<LecturerCourse>) => {
-      if (!user || !persistedId) return null;
-      const token = await user.getIdToken();
-      return updateMyCourse(token, persistedId, patch);
-    },
-    [user, persistedId],
-  );
-
-  // Debounced autosave — only after the course exists in Firestore.
-  useEffect(() => {
-    if (!course || !persistedId) return;
-    const next = snapshot(course);
-    if (next === savedSnapshotRef.current) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    setSavingStatus("idle");
-    saveTimerRef.current = setTimeout(() => {
-      void doSave();
-    }, AUTOSAVE_DEBOUNCE_MS);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [course]);
-
-  async function doSave(): Promise<void> {
-    if (!course || !user || !persistedId || inflightRef.current) return;
-    inflightRef.current = true;
-    setSavingStatus("saving");
-    try {
-      const result = await persist(editablePatch(course));
-      if (result) {
-        savedSnapshotRef.current = snapshot(result);
-        setCourse((prev) =>
-          prev ? { ...prev, updatedAt: result.updatedAt } : prev,
-        );
-      }
-      setSavingStatus("saved");
-    } catch (e) {
-      setSavingStatus("error");
-      setError(e instanceof Error ? e.message : "Auto-save failed");
-    } finally {
-      inflightRef.current = false;
-    }
-  }
-
   async function handleSaveDraft() {
     if (!course || !user || draftSavingRef.current) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-
     const payload: LecturerCourse = {
       ...course,
       status: "draft",
@@ -305,6 +253,8 @@ export function CourseEditor({
       const result = await publishMyCourse(token, id);
       setCourse(result);
       savedSnapshotRef.current = snapshot(result);
+      sessionStorage.removeItem(CREATE_DRAFT_STORAGE_KEY);
+      router.replace("/lecturer/courses");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not publish");
     } finally {
@@ -342,7 +292,7 @@ export function CourseEditor({
   }, [course, pendingAssets.thumbnail]);
 
   const goToStep = useCallback(
-    async (targetIdx: number) => {
+    (targetIdx: number) => {
       if (!course || !user) return;
       if (targetIdx < stepIdx) {
         setStepIdx(targetIdx);
@@ -351,33 +301,14 @@ export function CourseEditor({
       if (stepIdx === 0 && targetIdx > 0 && !basicsReady) {
         return;
       }
-      if (
-        stepIdx === 0 &&
-        targetIdx > 0 &&
-        !persistedIdRef.current &&
-        !draftSavingRef.current
-      ) {
-        setSavingStatus("saving");
-        setError(null);
-        try {
-          await ensurePersisted(course);
-          setSavingStatus("saved");
-        } catch (e) {
-          setSavingStatus("error");
-          setError(
-            e instanceof Error ? e.message : "Save the draft before continuing",
-          );
-          return;
-        }
-      }
       setStepIdx(targetIdx);
     },
-    [course, user, stepIdx, basicsReady, ensurePersisted],
+    [course, user, stepIdx, basicsReady],
   );
 
-  async function handleNext() {
+  function handleNext() {
     if (stepIdx >= STEPS.length - 1) return;
-    await goToStep(stepIdx + 1);
+    goToStep(stepIdx + 1);
   }
 
   const patchCourse = useCallback((patch: Partial<LecturerCourse>) => {
@@ -710,13 +641,13 @@ function SaveIndicator({
   isLocalDraft: boolean;
   t: (key: string) => string;
 }) {
-  if (status === "saving") return <span>{t("lecturer.create.autoSaving")}</span>;
+  if (status === "saving") return <span>{t("lecturer.create.savingDraft")}</span>;
   if (status === "error")
-    return <span className="text-rose-100">Auto-save failed</span>;
+    return <span className="text-rose-100">{t("lecturer.create.saveFailed")}</span>;
   if (isLocalDraft) {
     return <span>{t("lecturer.create.localDraft")}</span>;
   }
-  if (status === "saved" && !dirty) return <span>{t("lecturer.create.autoSaved")}</span>;
+  if (status === "saved" && !dirty) return <span>{t("lecturer.create.draftSaved")}</span>;
   if (dirty) return <span>{t("lecturer.create.unsaved")}</span>;
   return null;
 }
@@ -880,11 +811,11 @@ function CourseFormatChooser({
   onChange: (v: CourseType) => void;
 }) {
   const t = useT();
-  const options: { value: CourseType; descKey: string }[] = [
-    { value: "recorded", descKey: "lecturer.create.type.recorded.desc" },
-    { value: "live", descKey: "lecturer.create.type.live.desc" },
-    { value: "hybrid", descKey: "lecturer.create.type.hybrid.desc" },
-  ];
+  const options: { value: CourseType; descKey: string }[] =
+    COURSE_TYPE_OPTIONS.map((value) => ({
+      value,
+      descKey: `lecturer.create.type.${value}.desc`,
+    }));
   return (
     <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-5 sm:p-6">
       <div className="mb-3">
@@ -895,7 +826,7 @@ function CourseFormatChooser({
           {t("lecturer.create.format.subtitle")}
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => {
           const on = value === o.value;
           return (
@@ -942,37 +873,14 @@ function TypeStep({
     <div className="grid gap-6 max-w-2xl">
       <div>
         <h2 className="text-lg font-semibold text-ink-900">
-          {t("lecturer.create.type.title")}
+          {t("lecturer.create.access.label")}
         </h2>
         <p className="mt-1 text-sm text-ink-500">
-          {t("lecturer.create.type.subtitle")}
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-ink-200 bg-ink-50/40 p-4 text-sm text-ink-600">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-          {t("lecturer.create.type.label")}
-        </span>
-        <div className="mt-1 text-ink-900 font-medium">
-          {t(`lecturer.create.type.${course.courseType}`)}
-        </div>
-        <p className="mt-1 text-xs text-ink-500">
-          {t(`lecturer.create.type.${course.courseType}.desc`)}
+          {t("lecturer.create.access.subtitle")}
         </p>
       </div>
 
       <RadioCardGroup
-        label={t("lecturer.create.visibility.label")}
-        value={course.visibility}
-        onChange={(v) => onChange({ visibility: v as CourseVisibility })}
-        options={COURSE_VISIBILITY_OPTIONS.map((v) => ({
-          value: v,
-          label: t(`lecturer.create.visibility.${v}`),
-        }))}
-      />
-
-      <RadioCardGroup
-        label={t("lecturer.create.access.label")}
         value={course.accessType}
         onChange={(v) => onChange({ accessType: v as CourseAccessType })}
         options={COURSE_ACCESS_OPTIONS.map((v) => ({
@@ -994,23 +902,17 @@ function ContentStep({
   uploadCourseId: string | null;
 }) {
   const t = useT();
-  const showModules =
-    course.courseType === "recorded" || course.courseType === "hybrid";
-  const showSchedule =
-    course.courseType === "live" || course.courseType === "hybrid";
+  const showModules = course.courseType === "recorded";
+  const showSchedule = course.courseType === "live";
 
   const titleKey =
     course.courseType === "live"
       ? "lecturer.create.content.schedule.title"
-      : course.courseType === "hybrid"
-        ? "lecturer.create.content.hybrid.title"
-        : "lecturer.create.content.title";
+      : "lecturer.create.content.title";
   const subtitleKey =
     course.courseType === "live"
       ? "lecturer.create.content.schedule.subtitle"
-      : course.courseType === "hybrid"
-        ? "lecturer.create.content.hybrid.subtitle"
-        : "lecturer.create.content.subtitle";
+      : "lecturer.create.content.subtitle";
 
   return (
     <div className="grid gap-5">
@@ -1026,27 +928,15 @@ function ContentStep({
       )}
 
       {showSchedule && (
-        <section className="grid gap-3">
-          {course.courseType === "hybrid" && (
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-500">
-              {t("lecturer.create.schedule.title")}
-            </h3>
-          )}
-          <WeeklyScheduleEditor
-            slots={course.weeklySchedule ?? []}
-            onChange={(weeklySchedule) => onChange({ weeklySchedule })}
-          />
-        </section>
+        <WeeklyScheduleEditor
+          slots={course.weeklySchedule ?? []}
+          onChange={(weeklySchedule) => onChange({ weeklySchedule })}
+        />
       )}
 
       {showModules && (
-        <section className="grid gap-3">
-          {course.courseType === "hybrid" && (
-            <h3 className="mt-4 text-sm font-semibold uppercase tracking-wide text-ink-500">
-              {t("lecturer.create.content.modules.title")}
-            </h3>
-          )}
-          {!uploadCourseId && !showSchedule && (
+        <>
+          {!uploadCourseId && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               {t("lecturer.create.saveBeforeUpload")}
             </p>
@@ -1056,7 +946,7 @@ function ContentStep({
             modules={course.modules}
             onChange={(modules) => onChange({ modules })}
           />
-        </section>
+        </>
       )}
     </div>
   );
@@ -1071,63 +961,97 @@ function PricingStep({
 }) {
   const t = useT();
   const isPaid = course.accessType === "paid";
+  const isLive = course.courseType === "live";
   return (
     <div className="grid gap-5 max-w-2xl">
       <h2 className="text-lg font-semibold text-ink-900">
         {t("lecturer.create.step.pricing")}
       </h2>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        <Labeled label={t("lecturer.create.price")}>
-          <input
-            type="number"
-            min={0}
-            disabled={!isPaid}
-            className="input-base disabled:bg-ink-50 disabled:text-ink-400"
-            value={course.price ?? ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              onChange({ price: v ? Number(v) : undefined });
-            }}
-          />
-        </Labeled>
-        <Labeled label={t("lecturer.create.discountPrice")}>
-          <input
-            type="number"
-            min={0}
-            disabled={!isPaid}
-            className="input-base disabled:bg-ink-50 disabled:text-ink-400"
-            value={course.discountPrice ?? ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              onChange({ discountPrice: v ? Number(v) : undefined });
-            }}
-          />
-        </Labeled>
-        <Labeled label={t("lecturer.create.startDate")}>
-          <input
-            type="date"
-            className="input-base"
-            value={course.startDate ?? ""}
-            onChange={(e) => onChange({ startDate: e.target.value || undefined })}
-          />
-        </Labeled>
-        <Labeled label={t("lecturer.create.endDate")}>
-          <input
-            type="date"
-            className="input-base"
-            value={course.endDate ?? ""}
-            onChange={(e) => onChange({ endDate: e.target.value || undefined })}
-          />
-        </Labeled>
-      </div>
+      <div className="grid gap-4">
+        {isPaid ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Labeled label={t("lecturer.create.price")}>
+              <input
+                type="number"
+                min={0}
+                className="input-base"
+                value={course.price ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ price: v ? Number(v) : undefined });
+                }}
+              />
+            </Labeled>
+            <Labeled label={t("lecturer.create.discountPrice")}>
+              <input
+                type="number"
+                min={0}
+                className="input-base"
+                value={course.discountPrice ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ discountPrice: v ? Number(v) : undefined });
+                }}
+              />
+            </Labeled>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-sm font-semibold text-emerald-900">
+              {t("lecturer.create.access.free")}
+            </p>
+            <p className="mt-0.5 text-xs text-emerald-800/80">
+              {t("lecturer.create.pricing.freeHint")}
+            </p>
+          </div>
+        )}
 
-      {!isPaid && (
-        <p className="text-xs text-ink-500">
-          {t("lecturer.create.access.free")} ·{" "}
-          {t("lecturer.create.access.label")}
-        </p>
-      )}
+        {isLive && (
+          <div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Labeled label={t("lecturer.create.enrollmentSlots")}>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="input-base"
+                  placeholder="e.g. 30"
+                  value={course.enrollmentSlots ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onChange({
+                      enrollmentSlots: v
+                        ? Math.max(1, Math.floor(Number(v)))
+                        : undefined,
+                    });
+                  }}
+                />
+              </Labeled>
+            </div>
+            <p className="mt-1.5 text-xs text-ink-500">
+              {t("lecturer.create.enrollmentSlotsHint")}
+            </p>
+          </div>
+        )}
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Labeled label={t("lecturer.create.startDate")}>
+            <DateChipPicker
+              label={t("lecturer.create.startDate")}
+              value={course.startDate}
+              onChange={(startDate) => onChange({ startDate })}
+            />
+          </Labeled>
+          <Labeled label={t("lecturer.create.endDate")}>
+            <DateChipPicker
+              label={t("lecturer.create.endDate")}
+              value={course.endDate}
+              onChange={(endDate) => onChange({ endDate })}
+            />
+          </Labeled>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1144,10 +1068,8 @@ function ReviewStep({
     0,
   );
   const slotCount = course.weeklySchedule?.length ?? 0;
-  const showModulesRow =
-    course.courseType === "recorded" || course.courseType === "hybrid";
-  const showScheduleRow =
-    course.courseType === "live" || course.courseType === "hybrid";
+  const showModulesRow = course.courseType === "recorded";
+  const showScheduleRow = course.courseType === "live";
   return (
     <div className="grid gap-5">
       <div>
@@ -1165,7 +1087,6 @@ function ReviewStep({
         <Row label={t("lecturer.create.level")} value={course.teachingLevel ? t(`onboard.levels.${course.teachingLevel}`) : "—"} />
         <Row label={t("lecturer.create.language")} value={course.language ? t(`onboard.languages.${course.language}`) : "—"} />
         <Row label={t("lecturer.create.type.label")} value={t(`lecturer.create.type.${course.courseType}`)} />
-        <Row label={t("lecturer.create.visibility.label")} value={t(`lecturer.create.visibility.${course.visibility}`)} />
         <Row label={t("lecturer.create.access.label")} value={t(`lecturer.create.access.${course.accessType}`)} />
         <Row label={t("lecturer.create.price")} value={course.accessType === "paid" && course.price ? `LKR ${course.price.toLocaleString()}` : t("lecturer.create.access.free")} />
         {showModulesRow && (
@@ -1175,14 +1096,24 @@ function ReviewStep({
           />
         )}
         {showScheduleRow && (
-          <Row
-            label={t("lecturer.create.schedule.title")}
-            value={
-              slotCount === 0
-                ? t("lecturer.create.schedule.empty")
-                : `${slotCount} ${t("lecturer.create.schedule.slots")}`
-            }
-          />
+          <>
+            <Row
+              label={t("lecturer.create.schedule.title")}
+              value={
+                slotCount === 0
+                  ? t("lecturer.create.schedule.empty")
+                  : `${slotCount} ${t("lecturer.create.schedule.sessions")}`
+              }
+            />
+            <Row
+              label={t("lecturer.create.enrollmentSlots")}
+              value={
+                course.enrollmentSlots
+                  ? String(course.enrollmentSlots)
+                  : "—"
+              }
+            />
+          </>
         )}
       </dl>
     </div>
@@ -1255,7 +1186,7 @@ function RadioCardGroup({
   onChange,
   options,
 }: {
-  label: string;
+  label?: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -1264,7 +1195,9 @@ function RadioCardGroup({
     options.length <= 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
   return (
     <div>
-      <div className="text-sm font-medium text-ink-700 mb-2">{label}</div>
+      {label && (
+        <div className="text-sm font-medium text-ink-700 mb-2">{label}</div>
+      )}
       <div className={`grid gap-3 ${cols}`}>
         {options.map((o) => {
           const on = value === o.value;

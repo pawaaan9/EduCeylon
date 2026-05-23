@@ -139,6 +139,17 @@ html[lang="ta"] .font-display {
   color: #94a3b8;
 }
 
+.input-base[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.input-base[type="number"]::-webkit-outer-spin-button,
+.input-base[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .textarea-base {
   width: 100%;
   min-height: 120px;

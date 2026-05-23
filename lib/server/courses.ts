@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdmin, getStorageBucketName } from "./firebase-admin";
 import { coursePublicSlug } from "@/lib/courses/slug";
-import { normalizeVisibility, type LecturerCourse } from "@/lib/courses/types";
+import { normalizeVisibility, normalizeCourseType, type LecturerCourse } from "@/lib/courses/types";
 
 export const LECTURER_COURSES = "lecturerCourses";
 
@@ -46,8 +46,7 @@ export function normalizeCourse(id: string, data: Record<string, unknown>): Lect
     teachingLevel:
       (data.teachingLevel as LecturerCourse["teachingLevel"]) ?? undefined,
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-    courseType:
-      (data.courseType as LecturerCourse["courseType"]) ?? "recorded",
+    courseType: normalizeCourseType(data.courseType),
     visibility: normalizeVisibility(data.visibility),
     accessType:
       (data.accessType as LecturerCourse["accessType"]) ?? "free",
@@ -64,6 +63,10 @@ export function normalizeCourse(id: string, data: Record<string, unknown>): Lect
       typeof data.discountPrice === "number" ? data.discountPrice : undefined,
     startDate: (data.startDate as string | undefined) ?? undefined,
     endDate: (data.endDate as string | undefined) ?? undefined,
+    enrollmentSlots:
+      typeof data.enrollmentSlots === "number" && data.enrollmentSlots > 0
+        ? Math.floor(data.enrollmentSlots)
+        : undefined,
     status: (data.status as LecturerCourse["status"]) ?? "draft",
     publishedAt: timestampToIso(data.publishedAt),
     createdAt: timestampToIso(data.createdAt),

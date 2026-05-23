@@ -9,7 +9,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "./config";
-import { dictionaries } from "./dictionaries";
+
+type Dict = Record<string, string>;
 
 type I18nContextValue = {
   locale: Locale;
@@ -22,9 +23,46 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 const STORAGE_KEY = "educeylon.locale";
 
 const listeners = new Set<() => void>();
+const dictionaryListeners = new Set<() => void>();
+
+let dictionaries: Record<Locale, Dict> | null = null;
+let dictionariesLoading = false;
 
 function notify() {
   for (const listener of listeners) listener();
+}
+
+function notifyDictionaries() {
+  for (const listener of dictionaryListeners) listener();
+}
+
+function ensureDictionariesLoaded() {
+  if (dictionaries || dictionariesLoading || typeof window === "undefined") return;
+  dictionariesLoading = true;
+  void import("./dictionaries")
+    .then((mod) => {
+      dictionaries = mod.dictionaries;
+      notifyDictionaries();
+    })
+    .finally(() => {
+      dictionariesLoading = false;
+    });
+}
+
+function subscribeDictionaries(listener: () => void) {
+  dictionaryListeners.add(listener);
+  ensureDictionariesLoaded();
+  return () => {
+    dictionaryListeners.delete(listener);
+  };
+}
+
+function getDictionariesSnapshot() {
+  return dictionaries;
+}
+
+function getDictionariesServerSnapshot() {
+  return null;
 }
 
 function subscribe(listener: () => void) {
@@ -55,6 +93,15 @@ function getServerSnapshot(): Locale {
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const locale = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const loadedDictionaries = useSyncExternalStore(
+    subscribeDictionaries,
+    getDictionariesSnapshot,
+    getDictionariesServerSnapshot,
+  );
+
+  useEffect(() => {
+    ensureDictionariesLoaded();
+  }, []);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -73,11 +120,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string, fallback?: string) => {
-      const dict = dictionaries[locale];
-      const value = dict[key] ?? dictionaries.en[key];
+      if (!loadedDictionaries) return fallback ?? key;
+      const dict = loadedDictionaries[locale];
+      const value = dict[key] ?? loadedDictionaries.en[key];
       return value ?? fallback ?? key;
     },
-    [locale],
+    [locale, loadedDictionaries],
   );
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);

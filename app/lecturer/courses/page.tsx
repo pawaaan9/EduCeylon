@@ -106,6 +106,10 @@ function CourseCard({
     (acc, m) => acc + (m.lessons?.length ?? 0),
     0,
   );
+  const metaLabel =
+    course.courseType === "live"
+      ? t("lecturer.courses.liveClass")
+      : `${course.modules.length} ${t("lecturer.courses.modules")} · ${totalLessons} ${t("lecturer.courses.lessons")}`;
 
   return (
     <div className="card overflow-hidden flex flex-col">
@@ -134,10 +138,7 @@ function CourseCard({
           <span className={`badge ${STATUS_BADGE[course.status]}`}>
             {t(`lecturer.courses.status${capitalize(course.status)}`)}
           </span>
-          <span className="text-xs text-ink-500">
-            {course.modules.length} {t("lecturer.courses.modules")} ·{" "}
-            {totalLessons} {t("lecturer.courses.lessons")}
-          </span>
+          <span className="text-xs text-ink-500">{metaLabel}</span>
         </div>
         <h3 className="font-semibold text-ink-900 line-clamp-2">
           {course.title.trim() || t("lecturer.courses.untitled")}

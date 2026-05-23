@@ -3,6 +3,7 @@ import { Saira, Noto_Sans_Sinhala, Noto_Sans_Tamil } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { AuthProvider } from "@/lib/firebase/AuthProvider";
+import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 
 const saira = Saira({
   variable: "--font-saira",
@@ -85,6 +86,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+        <ChunkLoadRecovery />
         <AuthProvider>
           <I18nProvider>{children}</I18nProvider>
         </AuthProvider>

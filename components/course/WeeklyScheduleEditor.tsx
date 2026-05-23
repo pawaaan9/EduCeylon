@@ -1,6 +1,7 @@
 "use client";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
+import { TimeChipPicker } from "@/components/TimeChipPicker";
 import {
   newClientId,
   WEEKLY_DAY_OPTIONS,
@@ -8,6 +9,11 @@ import {
   type WeeklyScheduleSlot,
 } from "@/lib/courses/types";
 import { useT } from "@/lib/i18n/I18nProvider";
+import {
+  formatScheduleDuration,
+  formatTimeRange12,
+  scheduleDurationMinutes,
+} from "@/lib/time/format";
 
 const DAY_ORDER: Record<WeeklyDay, number> = {
   monday: 0,
@@ -35,7 +41,7 @@ export function WeeklyScheduleEditor({
         id: newClientId("slot"),
         day: "monday",
         startTime: "08:00",
-        endTime: "10:00",
+        endTime: "17:00",
         title: "",
       },
     ]);
@@ -63,102 +69,18 @@ export function WeeklyScheduleEditor({
         </div>
       ) : (
         sorted.map((slot) => (
-          <div
+          <ScheduleSlotCard
             key={slot.id}
-            className="rounded-xl border border-ink-200 bg-white p-4 sm:p-5"
-          >
-            <div className="grid gap-3 sm:grid-cols-[140px_120px_120px_1fr_auto] sm:items-end">
-              <Labeled label={t("lecturer.create.schedule.day")}>
-                <select
-                  className="input-base select-base"
-                  value={slot.day}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { day: e.target.value as WeeklyDay })
-                  }
-                >
-                  {WEEKLY_DAY_OPTIONS.map((d) => (
-                    <option key={d} value={d}>
-                      {t(`lecturer.create.day.${d}`)}
-                    </option>
-                  ))}
-                </select>
-              </Labeled>
-
-              <Labeled label={t("lecturer.create.schedule.startTime")}>
-                <input
-                  type="time"
-                  className="input-base"
-                  value={slot.startTime}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { startTime: e.target.value })
-                  }
-                />
-              </Labeled>
-
-              <Labeled label={t("lecturer.create.schedule.endTime")}>
-                <input
-                  type="time"
-                  className="input-base"
-                  value={slot.endTime}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { endTime: e.target.value })
-                  }
-                />
-              </Labeled>
-
-              <Labeled label={t("lecturer.create.schedule.classTitle")}>
-                <input
-                  className="input-base"
-                  placeholder={t("lecturer.create.schedule.classTitle.placeholder")}
-                  value={slot.title}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { title: e.target.value })
-                  }
-                />
-              </Labeled>
-
-              <button
-                type="button"
-                onClick={() => removeSlot(slot.id)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-500 hover:bg-rose-50 hover:text-rose-600 sm:self-end"
-                aria-label={t("lecturer.create.schedule.remove")}
-              >
-                <TrashIcon className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Labeled label={t("lecturer.create.schedule.meetingURL")}>
-                <input
-                  type="url"
-                  className="input-base"
-                  placeholder="https://meet.…"
-                  value={slot.meetingURL ?? ""}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { meetingURL: e.target.value })
-                  }
-                />
-              </Labeled>
-              <Labeled label={t("lecturer.create.schedule.notes")}>
-                <input
-                  className="input-base"
-                  value={slot.description ?? ""}
-                  onChange={(e) =>
-                    updateSlot(slot.id, { description: e.target.value })
-                  }
-                />
-              </Labeled>
-            </div>
-          </div>
+            slot={slot}
+            t={t}
+            onUpdate={(patch) => updateSlot(slot.id, patch)}
+            onRemove={() => removeSlot(slot.id)}
+          />
         ))
       )}
 
       <div>
-        <button
-          type="button"
-          onClick={addSlot}
-          className="btn btn-secondary"
-        >
+        <button type="button" onClick={addSlot} className="btn btn-secondary">
           <PlusIcon className="h-4 w-4" />
           {t("lecturer.create.schedule.add")}
         </button>
@@ -167,19 +89,133 @@ export function WeeklyScheduleEditor({
   );
 }
 
-function Labeled({
-  label,
-  children,
+function ScheduleSlotCard({
+  slot,
+  t,
+  onUpdate,
+  onRemove,
 }: {
-  label: string;
-  children: React.ReactNode;
+  slot: WeeklyScheduleSlot;
+  t: (key: string) => string;
+  onUpdate: (patch: Partial<WeeklyScheduleSlot>) => void;
+  onRemove: () => void;
 }) {
+  const durationMin = scheduleDurationMinutes(slot.startTime, slot.endTime);
+  const dayLabel = t(`lecturer.create.day.${slot.day}`);
+  const dayAbbr =
+    dayLabel.length > 3 ? dayLabel.slice(0, 3).toUpperCase() : dayLabel.toUpperCase();
+
   return (
-    <label className="block">
-      <span className="text-xs font-medium text-ink-600 mb-1 block">
-        {label}
-      </span>
-      {children}
-    </label>
+    <article className="rounded-2xl border border-ink-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+      {/* Time banner */}
+      <div className="flex flex-wrap items-center gap-3 rounded-t-2xl border-b border-brand-100 bg-gradient-to-r from-brand-50 via-white to-brand-50/40 px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl brand-gradient text-xs font-bold uppercase tracking-wide text-white shadow-sm">
+            {dayAbbr}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <select
+              className="mb-0.5 block w-full max-w-[12rem] border-0 bg-transparent p-0 text-sm font-semibold text-ink-900 focus:outline-none focus:ring-0 cursor-pointer"
+              value={slot.day}
+              onChange={(e) =>
+                onUpdate({ day: e.target.value as WeeklyDay })
+              }
+              aria-label={t("lecturer.create.schedule.day")}
+            >
+              {WEEKLY_DAY_OPTIONS.map((d) => (
+                <option key={d} value={d}>
+                  {t(`lecturer.create.day.${d}`)}
+                </option>
+              ))}
+            </select>
+            <p className="text-sm font-bold tabular-nums text-brand-800 sm:text-base">
+              {formatTimeRange12(slot.startTime, slot.endTime)}
+            </p>
+          </div>
+        </div>
+
+        {durationMin !== null && (
+          <span className="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-800">
+            {formatScheduleDuration(durationMin)}
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={onRemove}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-500 hover:bg-rose-50 hover:text-rose-600"
+          aria-label={t("lecturer.create.schedule.remove")}
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Time pickers */}
+      <div className="px-4 py-4 sm:px-5">
+        <p className="mb-2 text-xs font-medium text-ink-500">
+          {t("lecturer.create.schedule.timeRange")}
+        </p>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <TimeChipPicker
+            label={t("lecturer.create.schedule.startTime")}
+            value={slot.startTime}
+            onChange={(startTime) => onUpdate({ startTime })}
+            className="min-w-[8.5rem] flex-1 sm:flex-none sm:min-w-[9rem]"
+          />
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-100 text-sm font-bold text-ink-400"
+            aria-hidden
+          >
+            →
+          </span>
+          <TimeChipPicker
+            label={t("lecturer.create.schedule.endTime")}
+            value={slot.endTime}
+            onChange={(endTime) => onUpdate({ endTime })}
+            className="min-w-[8.5rem] flex-1 sm:flex-none sm:min-w-[9rem]"
+          />
+        </div>
+
+        <div className="mt-4">
+          <label className="block">
+            <span className="text-xs font-medium text-ink-600 mb-1.5 block">
+              {t("lecturer.create.schedule.classTitle")}
+            </span>
+            <input
+              className="input-base"
+              placeholder={t("lecturer.create.schedule.classTitle.placeholder")}
+              value={slot.title}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-ink-600 mb-1.5 block">
+              {t("lecturer.create.schedule.meetingURL")}
+            </span>
+            <input
+              type="url"
+              className="input-base"
+              placeholder="https://meet.…"
+              value={slot.meetingURL ?? ""}
+              onChange={(e) => onUpdate({ meetingURL: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-ink-600 mb-1.5 block">
+              {t("lecturer.create.schedule.notes")}
+            </span>
+            <input
+              className="input-base"
+              value={slot.description ?? ""}
+              onChange={(e) => onUpdate({ description: e.target.value })}
+            />
+          </label>
+        </div>
+      </div>
+    </article>
   );
 }

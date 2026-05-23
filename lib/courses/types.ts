@@ -6,7 +6,7 @@ export type CourseVisibility = "draft" | "publish";
 
 export type CourseAccessType = "free" | "paid";
 
-export type CourseType = "recorded" | "live" | "hybrid";
+export type CourseType = "recorded" | "live";
 
 export type CourseLanguage = "si" | "ta" | "en";
 
@@ -116,13 +116,15 @@ export type LecturerCourse = {
   coverURL?: string;
 
   modules: CourseModule[];
-  /** Weekly recurring schedule (live / hybrid courses). */
+  /** Weekly recurring schedule (live courses). */
   weeklySchedule?: WeeklyScheduleSlot[];
 
   price?: number;
   discountPrice?: number;
   startDate?: string;
   endDate?: string;
+  /** Live courses — max students who can enroll. */
+  enrollmentSlots?: number;
 
   status: CourseStatus;
   publishedAt?: string;
@@ -152,11 +154,13 @@ export const TEACHING_LEVEL_OPTIONS: CourseTeachingLevel[] = [
 
 export const COURSE_LANGUAGE_OPTIONS: CourseLanguage[] = ["si", "ta", "en"];
 
-export const COURSE_TYPE_OPTIONS: CourseType[] = [
-  "recorded",
-  "live",
-  "hybrid",
-];
+export const COURSE_TYPE_OPTIONS: CourseType[] = ["recorded", "live"];
+
+/** Map legacy Firestore values (e.g. hybrid) to recorded or live. */
+export function normalizeCourseType(value: unknown): CourseType {
+  if (value === "live") return "live";
+  return "recorded";
+}
 
 export const COURSE_VISIBILITY_OPTIONS: CourseVisibility[] = [
   "draft",
