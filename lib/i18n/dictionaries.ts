@@ -165,7 +165,7 @@ const en: Dict = {
   "onboard.step.professional.desc": "Subjects, levels and qualifications.",
   "onboard.step.teaching": "Teaching information",
   "onboard.step.teaching.short": "Teaching",
-  "onboard.step.teaching.desc": "How and when you teach.",
+  "onboard.step.teaching.desc": "Choose how you deliver your classes.",
   "onboard.step.social": "Social & branding",
   "onboard.step.social.short": "Social",
   "onboard.step.social.desc": "Public profiles students can follow.",
@@ -351,6 +351,7 @@ const en: Dict = {
   "lecturer.nav.courses": "My Courses",
   "lecturer.nav.create": "Create Course",
   "lecturer.nav.live": "Live Classes",
+  "lecturer.nav.recorded": "Recorded series",
   "lecturer.nav.students": "Students",
   "lecturer.nav.analytics": "Analytics",
   "lecturer.nav.earnings": "Earnings",
@@ -534,6 +535,18 @@ const en: Dict = {
   "lecturer.courses.lessons": "lessons",
   "lecturer.courses.liveClass": "Live class",
   "lecturer.courses.untitled": "Untitled course",
+
+  "lecturer.live.subtitle": "Your live courses and weekly class sessions.",
+  "lecturer.live.new": "New live course",
+  "lecturer.live.empty.title": "No live classes yet",
+  "lecturer.live.empty.subtitle":
+    "Create a live course and add your weekly session schedule.",
+
+  "lecturer.recorded.subtitle": "Pre-recorded lecture series with modules and lessons.",
+  "lecturer.recorded.new": "New recorded series",
+  "lecturer.recorded.empty.title": "No recorded series yet",
+  "lecturer.recorded.empty.subtitle":
+    "Create a recorded course and upload your video lessons module by module.",
 
   "admin.nav.dashboard": "Dashboard",
   "admin.nav.lecturers": "Lecturers",
@@ -808,7 +821,7 @@ const si: Dict = {
   "onboard.step.professional.desc": "විෂයන්, මට්ටම් සහ සුදුසුකම්.",
   "onboard.step.teaching": "ඉගැන්වීමේ තොරතුරු",
   "onboard.step.teaching.short": "ඉගැන්වීම",
-  "onboard.step.teaching.desc": "ක්‍රම සහ වේලාවන්.",
+  "onboard.step.teaching.desc": "ඔබේ පන්ති ලබා දෙන ක්‍රම තෝරන්න.",
   "onboard.step.social": "සමාජ මාධ්‍ය",
   "onboard.step.social.short": "සමාජ",
   "onboard.step.social.desc": "පොදු පැතිකඩ සබැඳි.",
@@ -994,6 +1007,7 @@ const si: Dict = {
   "lecturer.nav.courses": "මගේ පාඨමාලා",
   "lecturer.nav.create": "පාඨමාලාවක් සාදන්න",
   "lecturer.nav.live": "සජීවී පන්ති",
+  "lecturer.nav.recorded": "පටිගත කළ මාලා",
   "lecturer.nav.students": "සිසුන්",
   "lecturer.nav.analytics": "විශ්ලේෂණ",
   "lecturer.nav.earnings": "ආදායම්",
@@ -1177,6 +1191,18 @@ const si: Dict = {
   "lecturer.courses.lessons": "පාඩම්",
   "lecturer.courses.liveClass": "සජීවී පන්තිය",
   "lecturer.courses.untitled": "මාතෘකාවක් නැත",
+
+  "lecturer.live.subtitle": "ඔබගේ සජීවී පාඨමාලා සහ සතිපතා සැසි.",
+  "lecturer.live.new": "නව සජීවී පාඨමාලාව",
+  "lecturer.live.empty.title": "තවම සජීවී පන්ති නැත",
+  "lecturer.live.empty.subtitle":
+    "සජීවී පාඨමාලාවක් සාදා සතිපතා සැසි කාලසටහන එක් කරන්න.",
+
+  "lecturer.recorded.subtitle": "මොඩියුල සහ පාඩම් සහිත පටිගත කළ මාලා.",
+  "lecturer.recorded.new": "නව පටිගත මාලාව",
+  "lecturer.recorded.empty.title": "තවම පටිගත මාලා නැත",
+  "lecturer.recorded.empty.subtitle":
+    "පටිගත පාඨමාලාවක් සාදා මොඩියුල වශයෙන් වීඩියෝ පාඩම් උඩුගත කරන්න.",
 
   "admin.nav.dashboard": "පාලකය",
   "admin.nav.lecturers": "ගුරුවරු",
@@ -1451,7 +1477,7 @@ const ta: Dict = {
   "onboard.step.professional.desc": "பாடங்கள், நிலைகள் மற்றும் தகுதிகள்.",
   "onboard.step.teaching": "கற்பித்தல் தகவல்",
   "onboard.step.teaching.short": "கற்பித்தல்",
-  "onboard.step.teaching.desc": "முறைகள் மற்றும் கிடைக்கும் நேரம்.",
+  "onboard.step.teaching.desc": "உங்கள் வகுப்புகளை எவ்வாறு வழங்குகிறீர்கள் என்பதைத் தேர்ந்தெடுக்கவும்.",
   "onboard.step.social": "சமூக ஊடகம்",
   "onboard.step.social.short": "சமூக",
   "onboard.step.social.desc": "பொது சுயவிவர இணைப்புகள்.",
@@ -1637,6 +1663,7 @@ const ta: Dict = {
   "lecturer.nav.courses": "என் பாடநெறிகள்",
   "lecturer.nav.create": "பாடநெறியை உருவாக்கு",
   "lecturer.nav.live": "நேரடி வகுப்புகள்",
+  "lecturer.nav.recorded": "பதிவு செய்யப்பட்ட தொடர்",
   "lecturer.nav.students": "மாணவர்கள்",
   "lecturer.nav.analytics": "பகுப்பாய்வு",
   "lecturer.nav.earnings": "வருவாய்",
@@ -1820,6 +1847,18 @@ const ta: Dict = {
   "lecturer.courses.lessons": "பாடங்கள்",
   "lecturer.courses.liveClass": "நேரடி வகுப்பு",
   "lecturer.courses.untitled": "தலைப்பு இல்லாதது",
+
+  "lecturer.live.subtitle": "உங்கள் நேரலை பாடநெறிகள் மற்றும் வாராந்திர அமர்வுகள்.",
+  "lecturer.live.new": "புதிய நேரலை பாடநெறி",
+  "lecturer.live.empty.title": "இன்னும் நேரடி வகுப்புகள் இல்லை",
+  "lecturer.live.empty.subtitle":
+    "நேரலை பாடநெறியை உருவாக்கி வாராந்திர அமர்வு அட்டவணையைச் சேர்க்கவும்.",
+
+  "lecturer.recorded.subtitle": "தொகுதிகள் மற்றும் பாடங்களுடன் பதிவு செய்யப்பட்ட தொடர்.",
+  "lecturer.recorded.new": "புதிய பதிவு தொடர்",
+  "lecturer.recorded.empty.title": "இன்னும் பதிவு தொடர் இல்லை",
+  "lecturer.recorded.empty.subtitle":
+    "பதிவு செய்யப்பட்ட பாடநெறியை உருவாக்கி தொகுதி வாரியாக வீடியோ பாடங்களைப் பதிவேற்றவும்.",
 
   "admin.nav.dashboard": "டாஷ்போர்டு",
   "admin.nav.lecturers": "ஆசிரியர்கள்",

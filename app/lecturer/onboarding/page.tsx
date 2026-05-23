@@ -18,7 +18,6 @@ import {
   VerificationStep,
 } from "@/components/lecturer/LecturerProfileStepForms";
 import { type QualificationsInputHandle } from "@/components/QualificationsInput";
-import { formatTeachingScheduleSummary } from "@/lib/onboarding/schedule-display";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { formatLanguagesList } from "@/lib/i18n/language-labels";
 import { useI18n, useT } from "@/lib/i18n/I18nProvider";
@@ -504,12 +503,6 @@ function ReviewStep({
           [
             "onboard.review.methods",
             value.teachingMethods.join(", "),
-          ],
-          [
-            "onboard.review.schedule",
-            formatTeachingScheduleSummary(value, (day) =>
-              t(`onboard.days.${day}`),
-            ),
           ],
           ["onboard.review.experience", value.experienceYears?.toString()],
           [

@@ -9,9 +9,7 @@ import {
   type QualificationsInputHandle,
 } from "@/components/QualificationsInput";
 import { SubCategoriesInput } from "@/components/SubCategoriesInput";
-import { DailyAvailabilitySchedule } from "@/components/DailyAvailabilitySchedule";
 import {
-  DAY_OPTIONS,
   LANGUAGE_OPTIONS,
   LECTURER_TYPES,
   MIN_BIO_LENGTH,
@@ -28,11 +26,6 @@ import type {
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useI18n, useT } from "@/lib/i18n/I18nProvider";
 import type { QualificationDraft } from "@/lib/onboarding/steps";
-import {
-  resolveSchedule,
-  syncLegacyAvailability,
-  type AvailableSchedule,
-} from "@/lib/onboarding/schedule";
 import {
   localizedLabel,
   SRI_LANKA_DISTRICTS,
@@ -218,22 +211,6 @@ export function TeachingStep({
 }) {
   const t = useT();
 
-  const schedule = resolveSchedule(
-    value.availableDays,
-    value.availableSchedule,
-    value,
-  );
-
-  function applySchedule(
-    nextSchedule: AvailableSchedule,
-    days = value.availableDays,
-  ) {
-    onChange({
-      availableSchedule: nextSchedule,
-      ...syncLegacyAvailability(nextSchedule, days),
-    });
-  }
-
   return (
     <div className="grid gap-5">
       <CheckboxGroup
@@ -244,31 +221,6 @@ export function TeachingStep({
         }))}
         values={value.teachingMethods}
         onChange={(arr) => onChange({ teachingMethods: arr as TeachingMethod[] })}
-      />
-      <CheckboxGroup
-        label={t("onboard.teaching.days")}
-        options={DAY_OPTIONS.map((d) => ({
-          value: d,
-          label: t(`onboard.days.${d}`),
-        }))}
-        values={value.availableDays}
-        onChange={(availableDays) => {
-          const nextSchedule = resolveSchedule(
-            availableDays,
-            value.availableSchedule,
-            value,
-          );
-          onChange({
-            availableDays,
-            availableSchedule: nextSchedule,
-            ...syncLegacyAvailability(nextSchedule, availableDays),
-          });
-        }}
-      />
-      <DailyAvailabilitySchedule
-        days={value.availableDays}
-        schedule={schedule}
-        onChange={applySchedule}
       />
     </div>
   );
