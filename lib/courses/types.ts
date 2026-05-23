@@ -96,6 +96,18 @@ export type LecturerCourse = {
   updatedAt?: string;
 };
 
+export type AdminCourseRow = {
+  id: string;
+  title: string;
+  lecturerId: string;
+  lecturerName: string;
+  status: CourseStatus;
+  accessType: CourseAccessType;
+  price: number;
+  thumbnailURL?: string;
+  updatedAt?: string;
+};
+
 export const TEACHING_LEVEL_OPTIONS: CourseTeachingLevel[] = [
   "ol",
   "al",

@@ -96,6 +96,17 @@ export async function listCoursesByLecturer(
   return rows;
 }
 
+/** Admin: all courses across lecturers. */
+export async function listAllCourses(): Promise<LecturerCourse[]> {
+  const { db } = getAdmin();
+  const snap = await db.collection(LECTURER_COURSES).get();
+  const rows = snap.docs.map((d) =>
+    normalizeCourse(d.id, d.data() as Record<string, unknown>),
+  );
+  rows.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+  return rows;
+}
+
 export async function getCourseById(
   uid: string,
   courseId: string,
