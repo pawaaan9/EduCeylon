@@ -28,6 +28,8 @@ export function ProgressRing({
         ? "text-brand-600"
         : "text-white";
   const textClass = variant === "light" ? "text-brand-700" : "text-white";
+  const valueClass = size <= 40 ? "text-xs" : "text-sm";
+  const suffixClass = size <= 40 ? "text-[7px]" : "text-[9px]";
 
   return (
     <div
@@ -60,8 +62,8 @@ export function ProgressRing({
         />
       </svg>
       <span className={`absolute text-center font-bold leading-none ${textClass}`}>
-        <span className="text-sm">{clamped}</span>
-        <span className="text-[9px] opacity-80">%</span>
+        <span className={valueClass}>{clamped}</span>
+        <span className={`${suffixClass} opacity-80`}>%</span>
       </span>
     </div>
   );

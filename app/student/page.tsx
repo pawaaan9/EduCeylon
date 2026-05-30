@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GradientHeader } from "@/components/GradientHeader";
-import { CourseProgressBar } from "@/components/CourseProgressBar";
+import { ProgressRing } from "@/components/ProgressRing";
 import { StatCard } from "@/components/StatCard";
 import { CourseCard } from "@/components/CourseCard";
 import {
@@ -151,17 +151,17 @@ export default function StudentDashboardPage() {
                     <div className="font-semibold text-ink-900 line-clamp-1">
                       {c.title[locale] ?? c.title.en}
                     </div>
-                    <div className="mt-2">
-                      <CourseProgressBar
-                        percent={c.progressPercent ?? 0}
-                        size="sm"
-                        showLabel={false}
-                      />
-                    </div>
                     <div className="mt-1.5 text-xs font-semibold text-brand-700">
                       {t("student.study.continueLearning")}
                     </div>
                   </div>
+                  <ProgressRing
+                    percent={c.progressPercent ?? 0}
+                    size={48}
+                    stroke={4}
+                    variant="light"
+                    className="shrink-0"
+                  />
                 </Link>
               ))}
             </div>

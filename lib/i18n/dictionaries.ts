@@ -373,6 +373,8 @@ const en: Dict = {
   "student.study.learningPath": "Learning path",
   "student.study.upNext": "Up next",
   "student.study.lesson": "Lesson",
+  "student.study.saving": "Saving…",
+  "student.study.saved": "Saved!",
 
   "student.stats.enrolled": "Enrolled courses",
   "student.stats.hours": "Hours learned",
@@ -1104,6 +1106,8 @@ const si: Dict = {
   "student.study.learningPath": "ඉගෙනුම් මාවත",
   "student.study.upNext": "ඊළඟට",
   "student.study.lesson": "පාඩම",
+  "student.study.saving": "සුරකිමින්…",
+  "student.study.saved": "සුරකින ලදී!",
 
 
   "student.stats.enrolled" : "ලියාපදිංචි පාඨමාලා",
@@ -1830,6 +1834,8 @@ const ta: Dict = {
   "student.study.learningPath": "கற்றல் பாதை",
   "student.study.upNext": "அடுத்தது",
   "student.study.lesson": "பாடம்",
+  "student.study.saving": "சேமிக்கிறது…",
+  "student.study.saved": "சேமிக்கப்பட்டது!",
   "student.study.markModuleDone": "தொகுதியை முடிந்ததாகக் குறி",
   "student.study.moduleDone": "தொகுதி முடிந்தது",
 

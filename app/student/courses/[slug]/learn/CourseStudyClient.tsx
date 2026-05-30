@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { CourseProgressBar } from "@/components/CourseProgressBar";
+import { ProgressRing } from "@/components/ProgressRing";
 import {
   BookIcon,
   CheckCircleIcon,
@@ -37,6 +37,24 @@ const EMPTY_PROGRESS: CourseStudyProgress = {
   completedModuleIds: [],
 };
 
+type SaveState = {
+  key: string;
+  phase: "loading" | "success";
+};
+
+function saveKey(type: "lesson" | "module", id: string) {
+  return `${type}:${id}`;
+}
+
+function ActionSpinner({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
+      aria-hidden
+    />
+  );
+}
+
 function firstPlayableLesson(course: StudyCourseWithProgress): StudyLesson | null {
   for (const mod of course.modules) {
     for (const lesson of mod.lessons) {
@@ -55,9 +73,16 @@ export function CourseStudyClient({ slug }: { slug: string }) {
   const [progress, setProgress] = useState<CourseStudyProgress>(EMPTY_PROGRESS);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState | null>(null);
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
   const [mobileLessonsOpen, setMobileLessonsOpen] = useState(false);
+  const saveSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveBusy = saveState !== null;
+  const isSaveLoading = (key: string) =>
+    saveState?.key === key && saveState.phase === "loading";
+  const isSaveSuccess = (key: string) =>
+    saveState?.key === key && saveState.phase === "success";
 
   const completedLessons = useMemo(
     () => new Set(progress.completedLessonIds),
@@ -97,6 +122,12 @@ export function CourseStudyClient({ slug }: { slug: string }) {
   }, [user, slug]);
 
   useEffect(() => {
+    return () => {
+      if (saveSuccessTimer.current) clearTimeout(saveSuccessTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mobileLessonsOpen) return;
     const html = document.documentElement;
     const prev = html.style.overflow;
@@ -111,18 +142,26 @@ export function CourseStudyClient({ slug }: { slug: string }) {
       payload:
         | { lessonId: string; completed: boolean }
         | { moduleId: string; completed: boolean },
+      key: string,
     ) => {
-      if (!user) return;
-      setSaving(true);
+      if (!user || saveState?.phase === "loading") return;
+      if (saveSuccessTimer.current) clearTimeout(saveSuccessTimer.current);
+      setSaveState({ key, phase: "loading" });
       try {
         const token = await user.getIdToken();
         const next = await updateStudyProgress(token, slug, payload);
         setProgress(next);
-      } finally {
-        setSaving(false);
+        setSaveState({ key, phase: "success" });
+        saveSuccessTimer.current = setTimeout(() => {
+          setSaveState((current) =>
+            current?.key === key && current.phase === "success" ? null : current,
+          );
+        }, 1500);
+      } catch {
+        setSaveState(null);
       }
     },
-    [user, slug],
+    [user, slug, saveState?.phase],
   );
 
   const flatLessons = useMemo((): FlatLesson[] => {
@@ -188,6 +227,11 @@ export function CourseStudyClient({ slug }: { slug: string }) {
     course.modules.reduce((n, m) => n + m.lessons.length, 0);
   const completedLessonCount =
     progress.completedLessons ?? completedLessons.size;
+  const moduleCount = course.modules.length;
+  const completedModuleCount = completedModules.size;
+  const activeLessonSaveKey = activeLesson
+    ? saveKey("lesson", activeLesson.id)
+    : null;
 
   function selectLesson(id: string, closeMobile = false) {
     setActiveLessonId(id);
@@ -216,13 +260,31 @@ export function CourseStudyClient({ slug }: { slug: string }) {
               </div>
               <button
                 type="button"
-                disabled={saving}
+                disabled={saveBusy}
                 onClick={() =>
-                  void persistProgress({ moduleId: mod.id, completed: !modDone })
+                  void persistProgress(
+                    { moduleId: mod.id, completed: !modDone },
+                    saveKey("module", mod.id),
+                  )
                 }
-                className="text-xs font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:text-brand-900 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-busy={isSaveLoading(saveKey("module", mod.id))}
               >
-                {modDone ? t("student.study.moduleDone") : t("student.study.markModuleDone")}
+                {isSaveLoading(saveKey("module", mod.id)) ? (
+                  <>
+                    <ActionSpinner />
+                    {t("student.study.saving")}
+                  </>
+                ) : isSaveSuccess(saveKey("module", mod.id)) ? (
+                  <>
+                    <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-500" />
+                    {t("student.study.saved")}
+                  </>
+                ) : modDone ? (
+                  t("student.study.moduleDone")
+                ) : (
+                  t("student.study.markModuleDone")
+                )}
               </button>
             </div>
             <ul className="flex flex-col gap-0.5">
@@ -274,43 +336,119 @@ export function CourseStudyClient({ slug }: { slug: string }) {
 
   return (
     <div className="study-shell flex flex-col overflow-hidden">
-      {/* Compact header */}
-      <header className="border-b border-ink-200 bg-white px-4 py-4 sm:px-5">
-        <div className="flex items-start gap-3">
-          <Link
-            href="/student/courses"
-            className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-sm text-ink-500 hover:text-ink-900"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("student.study.backToCourses")}</span>
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold text-ink-900">{title}</h1>
-            <div className="mt-1 flex items-center gap-2 text-xs text-ink-500">
-              <Avatar
-                name={course.lecturer.name}
-                src={course.lecturer.photoURL}
-                size={20}
+      {/* Course hero */}
+      <header className="relative overflow-hidden border-b border-brand-900/10">
+        <div className="absolute inset-0 brand-gradient" aria-hidden />
+        {course.thumbnailURL ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={course.thumbnailURL}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-soft-light"
+            aria-hidden
+          />
+        ) : (
+          <div
+            className="absolute inset-0 opacity-35"
+            style={{ background: course.thumbnailGradient }}
+            aria-hidden
+          />
+        )}
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-[#0b1e4d]/95 via-[#1e40af]/88 to-[#2563eb]/82"
+          aria-hidden
+        />
+        <div
+          className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10 blur-3xl"
+          aria-hidden
+        />
+        <div
+          className="absolute -bottom-16 left-1/3 h-36 w-36 rounded-full bg-cyan-300/15 blur-3xl"
+          aria-hidden
+        />
+
+        <div className="relative px-4 py-5 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href="/student/courses"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white"
+            >
+              <ChevronLeftIcon className="h-3.5 w-3.5" />
+              {t("student.study.backToCourses")}
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMobileLessonsOpen(true)}
+              className="lg:hidden inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+              aria-label={t("student.study.curriculum")}
+            >
+              <MenuIcon className="h-3.5 w-3.5" />
+              {t("student.study.curriculum")}
+            </button>
+          </div>
+
+          <div className="mt-5 flex items-start gap-4">
+            <div className="hidden sm:block h-[4.5rem] w-[6.5rem] shrink-0 overflow-hidden rounded-xl ring-2 ring-white/25 shadow-lg">
+              {course.thumbnailURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={course.thumbnailURL}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div
+                  className="h-full w-full"
+                  style={{ background: course.thumbnailGradient }}
+                />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
+                {t("student.study.learningPath")}
+              </p>
+              <h1 className="mt-1 text-xl font-bold leading-tight tracking-tight text-white sm:text-2xl">
+                {title}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  <Avatar
+                    name={course.lecturer.name}
+                    src={course.lecturer.photoURL}
+                    size={20}
+                  />
+                  {course.lecturer.name}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-white/90">
+                  <BookIcon className="h-3.5 w-3.5 text-white/70" />
+                  {completedLessonCount}/{totalLessons} {t("course.lessons")}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-white/90">
+                  <CheckCircleIcon className="h-3.5 w-3.5 text-white/70" />
+                  {completedModuleCount}/{moduleCount} {t("lecturer.courses.modules")}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-center gap-1">
+              <ProgressRing
+                percent={progressPercent}
+                size={56}
+                stroke={4}
+                variant="dark"
+                className={
+                  activeLessonSaveKey && isSaveLoading(activeLessonSaveKey)
+                    ? "animate-pulse"
+                    : ""
+                }
+                label={`${progressPercent}% ${t("student.study.complete")}`}
               />
-              <span>{course.lecturer.name}</span>
-              <span>·</span>
-              <span>
-                {completedLessonCount}/{totalLessons} {t("course.lessons")}
+              <span className="hidden text-[10px] font-medium uppercase tracking-wide text-white/60 sm:block">
+                {t("student.study.progress")}
               </span>
             </div>
-            <div className="mt-3 max-w-sm">
-              <CourseProgressBar percent={progressPercent} size="sm" />
-            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setMobileLessonsOpen(true)}
-            className="lg:hidden inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-2 text-xs font-semibold text-ink-700 shadow-sm hover:bg-ink-50"
-            aria-label={t("student.study.curriculum")}
-          >
-            <MenuIcon className="h-4 w-4" />
-            {t("student.study.curriculum")}
-          </button>
         </div>
       </header>
 
@@ -331,45 +469,102 @@ export function CourseStudyClient({ slug }: { slug: string }) {
             </div>
           ) : (
             <div className="flex flex-col">
-              <div className="border-b border-ink-100 px-4 py-4 sm:px-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-brand-600">
-                      {activeEntry?.moduleTitle}
-                    </p>
-                    <h2 className="mt-1 text-xl font-semibold text-ink-900">{activeTitle}</h2>
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      {activeLesson.durationMin > 0 && (
-                        <span className="inline-flex items-center gap-1 text-xs text-ink-500">
-                          <ClockIcon className="h-3.5 w-3.5" />
-                          {activeLesson.durationMin} min
-                        </span>
-                      )}
-                      <span className="text-xs text-ink-400">
-                        {t("student.study.lesson")} {activeIndex + 1}/{totalLessons}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() =>
-                      void persistProgress({
-                        lessonId: activeLesson.id,
-                        completed: !activeLessonDone,
-                      })
-                    }
-                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${
-                      activeLessonDone
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                        : "border border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100"
+              <div className="px-4 pt-4 sm:px-6 sm:pt-5">
+                <div
+                  className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 ${
+                    activeLessonDone
+                      ? "border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/40"
+                      : "border-brand-100 bg-gradient-to-br from-brand-50/70 via-white to-indigo-50/30"
+                  }`}
+                >
+                  <div
+                    className={`absolute -right-6 -top-6 h-28 w-28 rounded-full blur-2xl ${
+                      activeLessonDone ? "bg-emerald-200/40" : "bg-brand-200/35"
                     }`}
-                  >
-                    <CheckCircleIcon className="h-4 w-4" />
-                    {activeLessonDone
-                      ? t("student.study.lessonDone")
-                      : t("student.study.markLessonDone")}
-                  </button>
+                    aria-hidden
+                  />
+                  <div className="relative flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
+                      <div
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-bold text-white shadow-md sm:h-12 sm:w-12 sm:text-lg ${
+                          activeLessonDone ? "bg-emerald-500" : "brand-gradient"
+                        }`}
+                      >
+                        {activeIndex + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-flex items-center rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700 ring-1 ring-brand-200/80">
+                          {activeEntry?.moduleTitle}
+                        </span>
+                        <h2 className="mt-2 text-lg font-semibold leading-snug text-ink-900 sm:text-xl">
+                          {activeTitle}
+                        </h2>
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                          {activeLesson.durationMin > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-600 ring-1 ring-ink-200/80">
+                              <ClockIcon className="h-3.5 w-3.5 text-brand-500" />
+                              {activeLesson.durationMin} min
+                            </span>
+                          )}
+                          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink-600 ring-1 ring-ink-200/80">
+                            {t("student.study.lesson")} {activeIndex + 1}/{totalLessons}
+                          </span>
+                          {activeLessonDone && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                              <CheckCircleIcon className="h-3.5 w-3.5" />
+                              {t("student.study.lessonDone")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={saveBusy}
+                      onClick={() =>
+                        void persistProgress(
+                          {
+                            lessonId: activeLesson.id,
+                            completed: !activeLessonDone,
+                          },
+                          activeLessonSaveKey!,
+                        )
+                      }
+                      aria-busy={
+                        activeLessonSaveKey
+                          ? isSaveLoading(activeLessonSaveKey)
+                          : false
+                      }
+                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-300 disabled:cursor-not-allowed ${
+                        activeLessonSaveKey && isSaveLoading(activeLessonSaveKey)
+                          ? "cursor-wait brand-gradient text-white opacity-90"
+                          : activeLessonSaveKey && isSaveSuccess(activeLessonSaveKey)
+                            ? "scale-[1.02] bg-emerald-500 text-white shadow-md ring-2 ring-emerald-300/60"
+                            : activeLessonDone
+                              ? "border border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-60"
+                              : "brand-gradient text-white hover:brightness-110 disabled:opacity-60"
+                      }`}
+                    >
+                      {activeLessonSaveKey && isSaveLoading(activeLessonSaveKey) ? (
+                        <>
+                          <ActionSpinner className="border-white/30 border-t-white" />
+                          {t("student.study.saving")}
+                        </>
+                      ) : activeLessonSaveKey && isSaveSuccess(activeLessonSaveKey) ? (
+                        <>
+                          <CheckCircleIcon className="h-4 w-4" />
+                          {t("student.study.saved")}
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircleIcon className="h-4 w-4" />
+                          {activeLessonDone
+                            ? t("student.study.lessonDone")
+                            : t("student.study.markLessonDone")}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -473,15 +668,22 @@ export function CourseStudyClient({ slug }: { slug: string }) {
             onClick={() => setMobileLessonsOpen(false)}
           />
           <aside className="absolute right-0 top-0 flex h-full w-[min(20rem,88vw)] flex-col bg-white shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-ink-200 px-4 py-3">
-              <div>
+            <div className="flex shrink-0 items-center gap-3 border-b border-ink-200 px-4 py-3">
+              <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-semibold text-ink-900">
                   {t("student.study.curriculum")}
                 </h2>
                 <p className="text-xs text-ink-500">
-                  {completedLessonCount}/{totalLessons} · {progressPercent}%
+                  {completedLessonCount}/{totalLessons} {t("course.lessons")}
                 </p>
               </div>
+              <ProgressRing
+                percent={progressPercent}
+                size={40}
+                stroke={3}
+                variant="light"
+                className="shrink-0"
+              />
               <button
                 type="button"
                 onClick={() => setMobileLessonsOpen(false)}

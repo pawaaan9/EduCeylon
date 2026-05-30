@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { Course } from "@/lib/data/types";
 import { Avatar } from "./Avatar";
-import { CourseProgressBar } from "./CourseProgressBar";
+import { ProgressRing } from "./ProgressRing";
 import { ClockIcon, PlayCircleIcon, StarIcon, UsersIcon } from "./icons";
 
 const LKR = new Intl.NumberFormat("en-LK", {
@@ -86,15 +86,20 @@ export function CourseCard({
           <span className="truncate">{lecturerName}</span>
         </div>
         {variant === "enrolled" && (
-          <CourseProgressBar
-            percent={course.progressPercent ?? 0}
-            size="sm"
-          />
+          <div className="flex items-center gap-3">
+            <ProgressRing
+              percent={course.progressPercent ?? 0}
+              size={44}
+              stroke={3}
+              variant="light"
+            />
+            <p className="text-xs text-ink-500">{t("student.study.progress")}</p>
+          </div>
         )}
         <div className="mt-auto flex items-end justify-between pt-3 border-t border-ink-100">
           {variant === "enrolled" ? (
             <div className="text-xs text-ink-500">
-              {course.progressPercent ?? 0}% {t("student.study.complete")}
+              {course.hours}h · {course.lessons} {t("course.lessons")}
             </div>
           ) : (
             <div className="flex items-center gap-3 text-xs text-ink-500">
