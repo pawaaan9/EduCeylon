@@ -147,30 +147,67 @@ export async function listLatestQuizAttempts(
   studentId: string,
   courseId: string,
 ): Promise<Record<string, QuizAttemptSummary>> {
-  const { db } = getAdmin();
-  const snap = await db
-    .collection(QUIZ_ATTEMPTS_COLLECTION)
-    .where("studentId", "==", studentId)
-    .where("courseId", "==", courseId)
-    .get();
-
+  const rows = await listLatestQuizAttemptRows(studentId, courseId);
   const map: Record<string, QuizAttemptSummary> = {};
+  for (const row of rows) {
+    map[row.quizId] = {
+      quizId: row.quizId,
+      scorePercent: row.scorePercent,
+      passed: row.passed,
+      submittedAt: row.submittedAt,
+    };
+  }
+  return map;
+}
+
+export type QuizAttemptRow = QuizAttemptSummary & {
+  courseId: string;
+  scope: QuizScope;
+  scopeId: string;
+  correctCount: number;
+  totalQuestions: number;
+};
+
+export async function listLatestQuizAttemptRows(
+  studentId: string,
+  courseId?: string,
+): Promise<QuizAttemptRow[]> {
+  const { db } = getAdmin();
+  let query = db
+    .collection(QUIZ_ATTEMPTS_COLLECTION)
+    .where("studentId", "==", studentId);
+
+  if (courseId) {
+    query = query.where("courseId", "==", courseId);
+  }
+
+  const snap = await query.get();
+  const map = new Map<string, QuizAttemptRow>();
 
   for (const doc of snap.docs) {
     const data = doc.data() as Record<string, unknown>;
+    const rowCourseId = data.courseId as string;
     const quizId = data.quizId as string;
+    if (!rowCourseId || !quizId) continue;
+
     const submittedAt =
       timestampToIso(data.submittedAt) ?? new Date(0).toISOString();
-    const existing = map[quizId];
+    const key = `${rowCourseId}_${quizId}`;
+    const existing = map.get(key);
     if (existing && existing.submittedAt >= submittedAt) continue;
 
-    map[quizId] = {
+    map.set(key, {
       quizId,
+      courseId: rowCourseId,
+      scope: (data.scope as QuizScope) ?? "lesson",
+      scopeId: typeof data.scopeId === "string" ? data.scopeId : "",
       scorePercent: Number(data.scorePercent) || 0,
       passed: data.passed === true,
+      correctCount: Number(data.correctCount) || 0,
+      totalQuestions: Number(data.totalQuestions) || 0,
       submittedAt,
-    };
+    });
   }
 
-  return map;
+  return [...map.values()];
 }

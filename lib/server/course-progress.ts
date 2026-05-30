@@ -150,10 +150,12 @@ export async function setLessonProgress(
 
   syncModuleCompletion(modules, lessonIds, moduleIds);
 
-  return saveProgress(studentId, courseId, {
+  const saved = await saveProgress(studentId, courseId, {
     completedLessonIds: [...lessonIds],
     completedModuleIds: [...moduleIds],
   });
+
+  return saved;
 }
 
 export async function setModuleProgress(

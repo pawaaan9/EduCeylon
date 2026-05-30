@@ -55,6 +55,19 @@ export function CalendarIcon(p: IconProps) {
   );
 }
 
+export function JournalIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <line x1="8" y1="1" x2="8" y2="5" />
+      <line x1="16" y1="1" x2="16" y2="5" />
+      <line x1="4" y1="9" x2="20" y2="9" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  );
+}
+
 export function HeartIcon(p: IconProps) {
   return (
     <svg {...base} {...p}>
