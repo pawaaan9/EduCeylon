@@ -99,6 +99,14 @@ export function normalizeCourse(id: string, data: Record<string, unknown>): Lect
     publishedAt: timestampToIso(data.publishedAt),
     createdAt: timestampToIso(data.createdAt),
     updatedAt: timestampToIso(data.updatedAt),
+    reviewCount:
+      typeof data.reviewCount === "number" && data.reviewCount >= 0
+        ? Math.floor(data.reviewCount)
+        : undefined,
+    ratingSum:
+      typeof data.ratingSum === "number" && data.ratingSum >= 0
+        ? data.ratingSum
+        : undefined,
   };
   return base;
 }

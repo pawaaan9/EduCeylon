@@ -13,15 +13,26 @@ import {
   CloseIcon,
   MenuIcon,
   PlayCircleIcon,
+  StarIcon,
 } from "@/components/icons";
+import { QuizPlayer } from "@/components/study/QuizPlayer";
+import {
+  canMarkLessonComplete,
+  canMarkModuleComplete,
+  getLessonRequiredQuizIds,
+  pendingQuizIds,
+} from "@/lib/courses/quiz-requirements";
 import {
   fetchStudyCourse,
   updateStudyProgress,
 } from "@/lib/api/enrollments";
 import type {
   CourseStudyProgress,
+  QuizAttemptSummary,
+  QuizSubmitResult,
   StudyCourseWithProgress,
   StudyLesson,
+  StudyQuiz,
 } from "@/lib/data/types";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -42,6 +53,10 @@ type SaveState = {
   phase: "loading" | "success";
 };
 
+type QuizBlockAlert =
+  | { kind: "lesson"; lessonId: string; message: string }
+  | { kind: "module"; moduleId: string; message: string };
+
 function saveKey(type: "lesson" | "module", id: string) {
   return `${type}:${id}`;
 }
@@ -52,6 +67,51 @@ function ActionSpinner({ className = "" }: { className?: string }) {
       className={`inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
       aria-hidden
     />
+  );
+}
+
+function StudyAlertBanner({
+  message,
+  onDismiss,
+  dismissLabel,
+}: {
+  message: string;
+  onDismiss: () => void;
+  dismissLabel: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-100/80"
+    >
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-4 w-4"
+          aria-hidden
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </span>
+      <p className="min-w-0 flex-1 pt-1 text-sm leading-snug text-amber-950">
+        {message}
+      </p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-amber-700 transition-colors hover:bg-amber-100/80 hover:text-amber-900"
+        aria-label={dismissLabel}
+      >
+        <CloseIcon className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -71,11 +131,17 @@ export function CourseStudyClient({ slug }: { slug: string }) {
   const { user } = useAuth();
   const [course, setCourse] = useState<StudyCourseWithProgress | null>(null);
   const [progress, setProgress] = useState<CourseStudyProgress>(EMPTY_PROGRESS);
+  const [quizAttempts, setQuizAttempts] = useState<
+    Record<string, QuizAttemptSummary>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState | null>(null);
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
   const [mobileLessonsOpen, setMobileLessonsOpen] = useState(false);
+  const [quizBlockAlert, setQuizBlockAlert] = useState<QuizBlockAlert | null>(
+    null,
+  );
   const saveSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveBusy = saveState !== null;
@@ -104,6 +170,7 @@ export function CourseStudyClient({ slug }: { slug: string }) {
         if (!cancelled) {
           setCourse(data);
           setProgress(data.progress ?? EMPTY_PROGRESS);
+          setQuizAttempts(data.quizAttempts ?? {});
           setActiveLessonId(firstPlayableLesson(data)?.id ?? null);
           setError(null);
         }
@@ -136,6 +203,16 @@ export function CourseStudyClient({ slug }: { slug: string }) {
       html.style.overflow = prev;
     };
   }, [mobileLessonsOpen]);
+
+  useEffect(() => {
+    setQuizBlockAlert(null);
+  }, [activeLessonId]);
+
+  useEffect(() => {
+    if (!quizBlockAlert) return;
+    const timer = setTimeout(() => setQuizBlockAlert(null), 8000);
+    return () => clearTimeout(timer);
+  }, [quizBlockAlert]);
 
   const persistProgress = useCallback(
     async (
@@ -191,6 +268,41 @@ export function CourseStudyClient({ slug }: { slug: string }) {
       ? flatLessons[activeIndex + 1]
       : null;
 
+  const handleQuizSubmitted = useCallback(
+    (result: QuizSubmitResult) => {
+      setQuizAttempts((prev) => {
+        const next = {
+          ...prev,
+          [result.quizId]: {
+            quizId: result.quizId,
+            scorePercent: result.scorePercent,
+            passed: result.passed,
+            submittedAt: result.submittedAt,
+          },
+        };
+
+        if (course && activeLessonId && !completedLessons.has(activeLessonId)) {
+          const canComplete = canMarkLessonComplete(
+            course.modules,
+            course.finalQuiz,
+            activeLessonId,
+            next,
+          );
+          if (canComplete) {
+            setQuizBlockAlert(null);
+            void persistProgress(
+              { lessonId: activeLessonId, completed: true },
+              saveKey("lesson", activeLessonId),
+            );
+          }
+        }
+
+        return next;
+      });
+    },
+    [course, activeLessonId, completedLessons, persistProgress],
+  );
+
   if (loading) {
     return (
       <div className="study-shell flex min-h-[320px] items-center justify-center">
@@ -221,6 +333,26 @@ export function CourseStudyClient({ slug }: { slug: string }) {
     ? completedLessons.has(activeLesson.id)
     : false;
 
+  const activeLessonCanComplete = activeLesson
+    ? canMarkLessonComplete(
+        course.modules,
+        course.finalQuiz,
+        activeLesson.id,
+        quizAttempts,
+      )
+    : true;
+
+  const activeLessonPendingQuizCount = activeLesson
+    ? pendingQuizIds(
+        getLessonRequiredQuizIds(
+          course.modules,
+          course.finalQuiz,
+          activeLesson.id,
+        ),
+        quizAttempts,
+      ).length
+    : 0;
+
   const progressPercent = progress.percent ?? 0;
   const totalLessons =
     progress.totalLessons ??
@@ -232,6 +364,95 @@ export function CourseStudyClient({ slug }: { slug: string }) {
   const activeLessonSaveKey = activeLesson
     ? saveKey("lesson", activeLesson.id)
     : null;
+
+  const activeModule = activeEntry
+    ? course.modules.find((m) => m.id === activeEntry.moduleId) ?? null
+    : null;
+
+  const isLastLessonInModule =
+    activeModule && activeLesson
+      ? activeModule.lessons[activeModule.lessons.length - 1]?.id ===
+        activeLesson.id
+      : false;
+
+  const isLastLessonInCourse =
+    flatLessons.length > 0 &&
+    activeLesson?.id === flatLessons[flatLessons.length - 1]?.lesson.id;
+
+  function handleMarkLessonClick() {
+    if (!activeLesson || !activeLessonSaveKey) return;
+
+    if (activeLessonDone) {
+      setQuizBlockAlert(null);
+      void persistProgress(
+        { lessonId: activeLesson.id, completed: false },
+        activeLessonSaveKey,
+      );
+      return;
+    }
+
+    if (!activeLessonCanComplete) {
+      setQuizBlockAlert({
+        kind: "lesson",
+        lessonId: activeLesson.id,
+        message:
+          activeLessonPendingQuizCount > 1
+            ? t("student.study.quizzesRequiredToComplete")
+            : t("student.study.quizRequiredToComplete"),
+      });
+      return;
+    }
+
+    setQuizBlockAlert(null);
+    void persistProgress(
+      { lessonId: activeLesson.id, completed: true },
+      activeLessonSaveKey,
+    );
+  }
+
+  function handleMarkModuleClick(
+    modId: string,
+    modDone: boolean,
+    modCanComplete: boolean,
+  ) {
+    const key = saveKey("module", modId);
+
+    if (modDone) {
+      setQuizBlockAlert(null);
+      void persistProgress({ moduleId: modId, completed: false }, key);
+      return;
+    }
+
+    if (!modCanComplete) {
+      setQuizBlockAlert({
+        kind: "module",
+        moduleId: modId,
+        message: t("student.study.moduleQuizRequired"),
+      });
+      return;
+    }
+
+    setQuizBlockAlert(null);
+    void persistProgress({ moduleId: modId, completed: true }, key);
+  }
+
+  function renderQuizBlock(
+    quiz: StudyQuiz,
+    scope: "lesson" | "module" | "course",
+    scopeId: string,
+  ) {
+    return (
+      <QuizPlayer
+        key={`${quiz.id}-${scope}-${scopeId}`}
+        quiz={quiz}
+        scope={scope}
+        scopeId={scopeId}
+        slug={slug}
+        priorAttempt={quizAttempts[quiz.id]}
+        onSubmitted={handleQuizSubmitted}
+      />
+    );
+  }
 
   function selectLesson(id: string, closeMobile = false) {
     setActiveLessonId(id);
@@ -246,6 +467,12 @@ export function CourseStudyClient({ slug }: { slug: string }) {
         const modDoneCount = mod.lessons.filter((l) =>
           completedLessons.has(l.id),
         ).length;
+        const modCanComplete = canMarkModuleComplete(
+          course.modules,
+          course.finalQuiz,
+          mod.id,
+          quizAttempts,
+        );
 
         return (
           <section key={mod.id}>
@@ -262,10 +489,7 @@ export function CourseStudyClient({ slug }: { slug: string }) {
                 type="button"
                 disabled={saveBusy}
                 onClick={() =>
-                  void persistProgress(
-                    { moduleId: mod.id, completed: !modDone },
-                    saveKey("module", mod.id),
-                  )
+                  handleMarkModuleClick(mod.id, modDone, modCanComplete)
                 }
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:text-brand-900 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-busy={isSaveLoading(saveKey("module", mod.id))}
@@ -287,6 +511,16 @@ export function CourseStudyClient({ slug }: { slug: string }) {
                 )}
               </button>
             </div>
+            {quizBlockAlert?.kind === "module" &&
+            quizBlockAlert.moduleId === mod.id ? (
+              <div className="mb-2 px-1">
+                <StudyAlertBanner
+                  message={quizBlockAlert.message}
+                  onDismiss={() => setQuizBlockAlert(null)}
+                  dismissLabel={t("action.cancel")}
+                />
+              </div>
+            ) : null}
             <ul className="flex flex-col gap-0.5">
               {mod.lessons.map((lesson) => {
                 const isActive = lesson.id === activeLessonId;
@@ -452,6 +686,18 @@ export function CourseStudyClient({ slug }: { slug: string }) {
         </div>
       </header>
 
+      {progressPercent >= 100 && (
+        <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 sm:px-6">
+          <Link
+            href={`/courses/${slug}?tab=reviews`}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 hover:text-emerald-950"
+          >
+            <StarIcon className="h-4 w-4 text-amber-500" />
+            {t("student.study.leaveReview")}
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row">
         {/* Sidebar */}
         <aside className="hidden w-72 shrink-0 border-r border-ink-200 bg-ink-50/50 p-4 lg:block xl:w-80">
@@ -521,15 +767,7 @@ export function CourseStudyClient({ slug }: { slug: string }) {
                     <button
                       type="button"
                       disabled={saveBusy}
-                      onClick={() =>
-                        void persistProgress(
-                          {
-                            lessonId: activeLesson.id,
-                            completed: !activeLessonDone,
-                          },
-                          activeLessonSaveKey!,
-                        )
-                      }
+                      onClick={handleMarkLessonClick}
                       aria-busy={
                         activeLessonSaveKey
                           ? isSaveLoading(activeLessonSaveKey)
@@ -565,11 +803,23 @@ export function CourseStudyClient({ slug }: { slug: string }) {
                       )}
                     </button>
                   </div>
+                  {quizBlockAlert?.kind === "lesson" &&
+                  quizBlockAlert.lessonId === activeLesson.id ? (
+                    <div className="relative mt-4">
+                      <StudyAlertBanner
+                        message={quizBlockAlert.message}
+                        onDismiss={() => setQuizBlockAlert(null)}
+                        dismissLabel={t("action.cancel")}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
               <div className="px-4 py-4 sm:px-6">
-                {activeLesson.videoURL ? (
+                {activeLesson.type === "quiz" && activeLesson.quiz ? (
+                  renderQuizBlock(activeLesson.quiz, "lesson", activeLesson.id)
+                ) : activeLesson.videoURL ? (
                   <video
                     key={activeLesson.id}
                     controls
@@ -606,6 +856,34 @@ export function CourseStudyClient({ slug }: { slug: string }) {
                   </div>
                 )}
               </div>
+
+              {(activeLesson.type !== "quiz" && activeLesson.quiz) ||
+              (isLastLessonInModule && activeModule?.quiz) ||
+              (isLastLessonInCourse && course.finalQuiz) ? (
+                <div className="flex flex-col gap-4 border-t border-ink-100 px-4 py-4 sm:px-6">
+                  {activeLesson.type !== "quiz" && activeLesson.quiz
+                    ? renderQuizBlock(
+                        activeLesson.quiz,
+                        "lesson",
+                        activeLesson.id,
+                      )
+                    : null}
+                  {isLastLessonInModule && activeModule?.quiz
+                    ? renderQuizBlock(
+                        activeModule.quiz,
+                        "module",
+                        activeModule.id,
+                      )
+                    : null}
+                  {isLastLessonInCourse && course.finalQuiz
+                    ? renderQuizBlock(
+                        course.finalQuiz,
+                        "course",
+                        course.id,
+                      )
+                    : null}
+                </div>
+              ) : null}
 
               {(prevEntry || nextEntry) && (
                 <div className="flex gap-2 border-t border-ink-100 px-4 py-3 sm:px-6">

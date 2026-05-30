@@ -1,6 +1,8 @@
 import "server-only";
 
 import { resolveCourseSlug } from "@/lib/courses/slug";
+import { ensureQuiz } from "@/lib/courses/quiz";
+import { toStudyQuiz } from "@/lib/courses/quiz-student";
 import type { LecturerCourse } from "@/lib/courses/types";
 import type { Lecturer, Localized, StudyCourse } from "@/lib/data/types";
 import { approvedLecturerMap } from "./approved-lecturers";
@@ -29,6 +31,10 @@ function lecturerCourseToStudy(
     modules: course.modules.map((mod) => ({
       id: mod.id,
       title: localized(mod.title || "Module"),
+      quiz:
+        mod.quiz && mod.quiz.questions.length > 0
+          ? toStudyQuiz(ensureQuiz(mod.quiz))
+          : undefined,
       lessons: mod.lessons.map((lesson) => ({
         id: lesson.id,
         type: lesson.type,
@@ -37,8 +43,18 @@ function lecturerCourseToStudy(
         videoURL: lesson.videoURL,
         pdfURL: lesson.pdfURL,
         externalURL: lesson.externalURL,
+        quiz:
+          lesson.quiz && lesson.quiz.questions.length > 0
+            ? toStudyQuiz(ensureQuiz(lesson.quiz))
+            : lesson.type === "quiz" && lesson.quiz
+              ? toStudyQuiz(ensureQuiz(lesson.quiz))
+              : undefined,
       })),
     })),
+    finalQuiz:
+      course.finalQuiz && course.finalQuiz.questions.length > 0
+        ? toStudyQuiz(ensureQuiz(course.finalQuiz))
+        : undefined,
   };
 }
 

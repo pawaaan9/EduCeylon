@@ -94,6 +94,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           lessonId,
           completed,
           raw.modules,
+          raw.finalQuiz,
         )
       : await setModuleProgress(
           auth.user.uid,
@@ -101,6 +102,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           moduleId,
           completed,
           raw.modules,
+          raw.finalQuiz,
         );
 
     return NextResponse.json({

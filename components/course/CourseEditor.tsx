@@ -13,6 +13,8 @@ import {
 import { CourseAssetUpload } from "@/components/course/CourseAssetUpload";
 import { CourseTagInput } from "@/components/course/CourseTagInput";
 import { ModulesEditor } from "@/components/course/ModulesEditor";
+import { ReviewCurriculumPreview } from "@/components/course/ReviewCurriculumPreview";
+import { QuizEditorPanel } from "@/components/course/QuizEditor";
 import { WeeklyScheduleEditor } from "@/components/course/WeeklyScheduleEditor";
 import {
   createMyCourse,
@@ -38,6 +40,7 @@ import {
   type LecturerCourse,
 } from "@/lib/courses/types";
 import { isBasicsStepComplete } from "@/lib/courses/create-validation";
+import { summarizeCourseQuizzes } from "@/lib/courses/quiz";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useT } from "@/lib/i18n/I18nProvider";
 
@@ -1025,6 +1028,16 @@ function ContentStep({
             onChange={onModulesChange}
             onLessonMediaUploaded={onLessonMediaUploaded}
           />
+
+          <div className="rounded-xl border border-ink-200 bg-white p-4 sm:p-5">
+            <QuizEditorPanel
+              value={course.finalQuiz}
+              onChange={(finalQuiz) => onChange({ finalQuiz })}
+              enableLabel={t("lecturer.create.quiz.enableCourseQuiz")}
+              heading={t("lecturer.create.quiz.courseHeading")}
+              description={t("lecturer.create.quiz.courseDescription")}
+            />
+          </div>
         </>
       )}
     </div>
@@ -1130,6 +1143,7 @@ function ReviewStep({
     (acc, m) => acc + m.lessons.length,
     0,
   );
+  const { quizCount, questionCount } = summarizeCourseQuizzes(course);
   const slotCount = course.weeklySchedule?.length ?? 0;
   const showModulesRow = course.courseType === "recorded";
   const showScheduleRow = course.courseType === "live";
@@ -1153,10 +1167,20 @@ function ReviewStep({
         <Row label={t("lecturer.create.access.label")} value={t(`lecturer.create.access.${course.accessType}`)} />
         <Row label={t("lecturer.create.price")} value={course.accessType === "paid" && course.price ? `LKR ${course.price.toLocaleString()}` : t("lecturer.create.access.free")} />
         {showModulesRow && (
-          <Row
-            label={t("lecturer.create.content.modules.title")}
-            value={`${course.modules.length} ${t("lecturer.courses.modules")} · ${totalLessons} ${t("lecturer.courses.lessons")}`}
-          />
+          <>
+            <Row
+              label={t("lecturer.create.content.modules.title")}
+              value={`${course.modules.length} ${t("lecturer.courses.modules")} · ${totalLessons} ${t("lecturer.courses.lessons")}`}
+            />
+            <Row
+              label={t("lecturer.create.review.quizzes")}
+              value={
+                quizCount === 0
+                  ? "—"
+                  : `${quizCount} ${t("lecturer.create.review.quizCount")} · ${questionCount} ${t("lecturer.create.review.questionCount")}`
+              }
+            />
+          </>
         )}
         {showScheduleRow && (
           <>
@@ -1179,6 +1203,8 @@ function ReviewStep({
           </>
         )}
       </dl>
+
+      {showModulesRow ? <ReviewCurriculumPreview course={course} /> : null}
     </div>
   );
 }

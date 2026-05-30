@@ -53,7 +53,7 @@ async function getPublishedCourse(courseId: string) {
   return course;
 }
 
-async function countEnrollmentsForCourse(courseId: string): Promise<number> {
+export async function countEnrollmentsForCourse(courseId: string): Promise<number> {
   const { db } = getAdmin();
   const snap = await db
     .collection(ENROLLMENTS_COLLECTION)

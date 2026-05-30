@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { Avatar } from "@/components/Avatar";
+import { CourseReviewsSection } from "@/components/CourseReviewsSection";
 import {
   CheckCircleIcon,
   ClockIcon,
@@ -40,8 +41,13 @@ export function CourseDetailClient({
   const { t, locale } = useI18n();
   const router = useRouter();
   const pathname = usePathname() ?? `/courses/${course.slug}`;
+  const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<Tab>("about");
+  const [ratingStats, setRatingStats] = useState({
+    rating: course.rating,
+    reviews: course.reviews,
+  });
   const [enrolled, setEnrolled] = useState(false);
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [checkingEnrollment, setCheckingEnrollment] = useState(false);
@@ -50,6 +56,13 @@ export function CourseDetailClient({
 
   const title = course.title[locale] ?? course.title.en;
   const longDesc = course.longDescription[locale] ?? course.longDescription.en;
+
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "about" || requestedTab === "curriculum" || requestedTab === "reviews") {
+      setTab(requestedTab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (authLoading || !user || profile?.role !== "student") {
@@ -73,6 +86,16 @@ export function CourseDetailClient({
       cancelled = true;
     };
   }, [authLoading, user, profile?.role, course.id]);
+
+  const handleReviewSummaryChange = useCallback(
+    (summary: { averageRating: number; count: number }) => {
+      setRatingStats({
+        rating: summary.averageRating,
+        reviews: summary.count,
+      });
+    },
+    [],
+  );
 
   function openEnrollConfirm() {
     setEnrollError(null);
@@ -154,8 +177,10 @@ export function CourseDetailClient({
         <div className="flex flex-wrap items-center gap-5 text-sm text-ink-600">
           <span className="inline-flex items-center gap-1.5">
             <StarIcon className="h-4 w-4 text-amber-500" />
-            <strong className="text-ink-900">{course.rating.toFixed(1)}</strong>
-            ({course.reviews} {t("course.reviews").toLowerCase()})
+            <strong className="text-ink-900">
+              {ratingStats.reviews > 0 ? ratingStats.rating.toFixed(1) : "—"}
+            </strong>
+            ({ratingStats.reviews} {t("course.reviews").toLowerCase()})
           </span>
           <span className="inline-flex items-center gap-1.5">
             <UsersIcon className="h-4 w-4" />
@@ -251,9 +276,15 @@ export function CourseDetailClient({
             </div>
           )}
           {tab === "reviews" && (
-            <div className="card p-8 text-center text-ink-500">
-              Student reviews coming soon — be among the first to review this course!
-            </div>
+            <CourseReviewsSection
+              courseSlug={course.slug}
+              initialSummary={{
+                averageRating: ratingStats.rating,
+                count: ratingStats.reviews,
+              }}
+              enrolled={enrolled}
+              onSummaryChange={handleReviewSummaryChange}
+            />
           )}
         </div>
       </div>

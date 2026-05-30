@@ -9,7 +9,9 @@ import {
   TrashIcon,
 } from "@/components/icons";
 import { CourseFileUpload } from "@/components/course/CourseFileUpload";
+import { QuizEditor, QuizEditorPanel } from "@/components/course/QuizEditor";
 import { DateChipPicker } from "@/components/DateChipPicker";
+import { ensureQuiz, emptyQuiz } from "@/lib/courses/quiz";
 import {
   LESSON_TYPE_OPTIONS,
   newClientId,
@@ -230,6 +232,16 @@ export function ModulesEditor({
                       {t("lecturer.create.lesson.add")}
                     </button>
                   </div>
+
+                  <QuizEditorPanel
+                    value={mod.quiz}
+                    onChange={(quiz) =>
+                      updateModule(mod.id, { quiz: quiz ?? undefined })
+                    }
+                    enableLabel={t("lecturer.create.quiz.enableModuleQuiz")}
+                    heading={t("lecturer.create.quiz.moduleHeading")}
+                    description={t("lecturer.create.quiz.moduleDescription")}
+                  />
                 </div>
               </div>
             </div>
@@ -252,11 +264,15 @@ export function ModulesEditor({
 }
 
 function emptyLesson(type: LessonType): Lesson {
-  return {
+  const base: Lesson = {
     id: newClientId("les"),
     type,
     title: "",
   };
+  if (type === "quiz") {
+    base.quiz = emptyQuiz();
+  }
+  return base;
 }
 
 function LessonRow({
@@ -310,11 +326,23 @@ function LessonRow({
             />
             <select
               value={lesson.type}
-              onChange={(e) => onUpdate({ type: e.target.value as LessonType })}
+              onChange={(e) => {
+                const type = e.target.value as LessonType;
+                if (type === "quiz") {
+                  onUpdate({
+                    type,
+                    quiz: ensureQuiz(lesson.quiz),
+                  });
+                } else {
+                  onUpdate({ type });
+                }
+              }}
               className="input-base select-base"
               aria-label={t("lecturer.create.lesson.type")}
             >
-              {LESSON_TYPE_OPTIONS.map((tp) => (
+              {LESSON_TYPE_OPTIONS.filter(
+                (tp) => tp !== "quiz" || lesson.type === "quiz",
+              ).map((tp) => (
                 <option key={tp} value={tp}>
                   {t(`lecturer.create.lessonType.${tp}`)}
                 </option>
@@ -416,6 +444,25 @@ function LessonRow({
               value={lesson.liveSession ?? {}}
               onChange={(liveSession) => onUpdate({ liveSession })}
             />
+          )}
+
+          {lesson.type === "quiz" ? (
+            <QuizEditor
+              value={lesson.quiz}
+              onChange={(quiz) => onUpdate({ quiz })}
+              heading={t("lecturer.create.quiz.lessonHeading")}
+              description={t("lecturer.create.quiz.lessonDescription")}
+            />
+          ) : (
+            <div className="ml-1 border-l-2 border-brand-100 pl-4">
+              <QuizEditorPanel
+                value={lesson.quiz}
+                onChange={(quiz) => onUpdate({ quiz: quiz ?? undefined })}
+                enableLabel={t("lecturer.create.quiz.enableLessonQuiz")}
+                heading={t("lecturer.create.quiz.lessonHeading")}
+                description={t("lecturer.create.quiz.lessonQuizDescription")}
+              />
+            </div>
           )}
         </div>
       </div>

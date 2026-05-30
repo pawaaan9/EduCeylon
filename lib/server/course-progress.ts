@@ -1,7 +1,12 @@
 import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
-import type { CourseModule } from "@/lib/courses/types";
+import type { CourseModule, CourseQuiz } from "@/lib/courses/types";
+import {
+  canMarkLessonComplete,
+  canMarkModuleComplete,
+} from "@/lib/courses/quiz-requirements";
+import { listLatestQuizAttempts } from "./quiz-attempts";
 import {
   computeProgressPercent,
   countCompletedLessons,
@@ -116,6 +121,7 @@ export async function setLessonProgress(
   lessonId: string,
   completed: boolean,
   modules: CourseModule[],
+  finalQuiz?: CourseQuiz,
 ): Promise<CourseStudyProgress> {
   await assertEnrolled(studentId, courseId);
 
@@ -124,6 +130,15 @@ export async function setLessonProgress(
   );
   if (!lessonExists) {
     throw new Error("Lesson not found in this course");
+  }
+
+  if (completed) {
+    const attempts = await listLatestQuizAttempts(studentId, courseId);
+    if (!canMarkLessonComplete(modules, finalQuiz, lessonId, attempts)) {
+      throw new Error(
+        "Complete all quizzes for this lesson before marking it done",
+      );
+    }
   }
 
   const current = await getCourseProgress(studentId, courseId);
@@ -147,12 +162,22 @@ export async function setModuleProgress(
   moduleId: string,
   completed: boolean,
   modules: CourseModule[],
+  finalQuiz?: CourseQuiz,
 ): Promise<CourseStudyProgress> {
   await assertEnrolled(studentId, courseId);
 
   const mod = modules.find((m) => m.id === moduleId);
   if (!mod) {
     throw new Error("Module not found in this course");
+  }
+
+  if (completed) {
+    const attempts = await listLatestQuizAttempts(studentId, courseId);
+    if (!canMarkModuleComplete(modules, finalQuiz, moduleId, attempts)) {
+      throw new Error(
+        "Complete all quizzes in this module before marking it done",
+      );
+    }
   }
 
   const current = await getCourseProgress(studentId, courseId);
