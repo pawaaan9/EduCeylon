@@ -34,6 +34,7 @@ const en: Dict = {
   "home.featured.title": "Featured lecture series",
   "home.featured.subtitle": "Trending picks from top lecturers across the island.",
   "home.featured.viewAll": "View all courses",
+  "home.featured.empty": "No published courses yet. Check back soon.",
 
   "home.lecturers.title": "Meet our lecturers",
   "home.lecturers.subtitle": "Veteran teachers and rising stars — all in one place.",
@@ -80,6 +81,13 @@ const en: Dict = {
   "courses.results": "courses found",
 
   "course.enroll": "Enroll now",
+  "course.enrolling": "Enrolling…",
+  "course.enrolled": "View in my courses",
+  "course.enrollFailed": "Could not enroll. Please try again.",
+  "course.enrollStudentsOnly": "Only student accounts can enroll in courses.",
+  "course.enrollConfirm.title": "Confirm enrollment",
+  "course.enrollConfirm.description": "Do you want to enroll in",
+  "course.enrollConfirm.confirm": "Yes, enroll",
   "course.preview": "Preview",
   "course.lecturer": "Lecturer",
   "course.lessons": "lessons",
@@ -306,8 +314,11 @@ const en: Dict = {
 
   "onboard.upload.empty": "No image",
   "onboard.upload.select": "Upload image",
+  "onboard.upload.selectFile": "Upload file",
   "onboard.upload.replace": "Replace",
   "onboard.upload.uploading": "Uploading…",
+  "onboard.upload.preparing": "Preparing file…",
+  "onboard.upload.complete": "Upload complete",
 
   "onboard.done.pendingTitle": "Submitted for review",
   "onboard.done.pendingBody": "Our team will review your profile and email you within 1–2 business days.",
@@ -337,6 +348,31 @@ const en: Dict = {
   "student.nav.notifications": "Notifications",
   "student.nav.settings": "Settings",
   "student.nav.browse": "Browse Marketplace",
+
+  "student.courses.subtitle": "Pick up where you left off and keep your streak alive.",
+  "student.courses.empty.title": "No courses yet",
+  "student.courses.empty.subtitle":
+    "Browse the marketplace and enroll in a course to start learning.",
+  "student.courses.browse": "Browse courses",
+
+  "student.study.continueLearning": "Continue learning",
+  "student.study.backToCourses": "Back to my courses",
+  "student.study.curriculum": "Course content",
+  "student.study.selectLesson": "Select a lesson from the sidebar to start.",
+  "student.study.noContent": "No content available for this lesson yet.",
+  "student.study.openPdf": "Open PDF notes",
+  "student.study.openLink": "Open lesson link",
+  "student.study.loading": "Loading course…",
+  "student.study.notFound": "Course not found or you are not enrolled.",
+  "student.study.markLessonDone": "Mark lesson as done",
+  "student.study.lessonDone": "Lesson completed",
+  "student.study.markModuleDone": "Mark module as done",
+  "student.study.moduleDone": "Module completed",
+  "student.study.progress": "Progress",
+  "student.study.complete": "complete",
+  "student.study.learningPath": "Learning path",
+  "student.study.upNext": "Up next",
+  "student.study.lesson": "Lesson",
 
   "student.stats.enrolled": "Enrolled courses",
   "student.stats.hours": "Hours learned",
@@ -725,6 +761,7 @@ const si: Dict = {
   "home.featured.title": "ප්‍රධාන පාඩම් මාලා",
   "home.featured.subtitle": "ලංකාවේ ප්‍රමුඛ ගුරුවරුන්ගේ ජනප්‍රිය තේරීම්.",
   "home.featured.viewAll": "සියලුම පාඨමාලා බලන්න",
+  "home.featured.empty": "තවම ප්‍රකාශිත පාඨමාලා නැත. ඉක්මනින් නැවත බලන්න.",
 
   "home.lecturers.title": "අපගේ ගුරුවරුන් හමුවන්න",
   "home.lecturers.subtitle": "අත්දැකීම් සහිත හා නැගී එන ගුරුවරුන් — එකම තැනක.",
@@ -771,6 +808,14 @@ const si: Dict = {
   "courses.results": "පාඨමාලා හමු විය",
 
   "course.enroll": "ලියාපදිංචි වන්න",
+  "course.enrolling": "ලියාපදිංචි වෙමින්…",
+  "course.enrolled": "මගේ පාඨමාලා වල බලන්න",
+  "course.enrollFailed": "ලියාපදිංචි විය නොහැක. නැවත උත්සාහ කරන්න.",
+  "course.enrollStudentsOnly": "පාඨමාලා වලට ලියාපදිංචි විය හැක්කේ ශිෂ්‍ය ගිණුම් වලට පමණි.",
+
+  "course.enrollConfirm.title": "ලියාපදිංචි තහවුරු කරන්න",
+  "course.enrollConfirm.description": "ඔබට ලියාපදිංචි වීමට අවශ්‍ය",
+  "course.enrollConfirm.confirm": "ඔව්, ලියාපදිංචි වන්න",
   "course.preview": "පෙරදසුන",
   "course.lecturer": "ගුරුවරයා",
   "course.lessons": "පාඩම්",
@@ -997,8 +1042,11 @@ const si: Dict = {
 
   "onboard.upload.empty": "රූපයක් නැත",
   "onboard.upload.select": "රූපය උඩුගත කරන්න",
+  "onboard.upload.selectFile": "ගොනුව උඩුගත කරන්න",
   "onboard.upload.replace": "ආදේශ කරන්න",
   "onboard.upload.uploading": "උඩුගත කරයි…",
+  "onboard.upload.preparing": "ගොනුව සූදානම් කරයි…",
+  "onboard.upload.complete": "උඩුගත කිරීම සම්පූර්ණයි",
 
   "onboard.done.pendingTitle": "සමාලෝචනය සඳහා ඉදිරිපත්",
   "onboard.done.pendingBody": "දින 1-2 ක් ඇතුළත දැනුම් දෙනු ඇත.",
@@ -1029,7 +1077,36 @@ const si: Dict = {
   "student.nav.settings": "සැකසුම්",
   "student.nav.browse": "වෙළඳපොළ බලන්න",
 
-  "student.stats.enrolled": "ලියාපදිංචි පාඨමාලා",
+  "student.courses.subtitle": "ඔබ නතර කළ තැනින් දිගටම ඉගෙන ගෙන ඔබේ පිළිවෙළ තබා ගන්න.",
+  "student.courses.empty.title": "තවම පාඨමාලා නැත",
+  "student.courses.empty.subtitle": "වෙළඳපොළ බලා පාඨමාලාවකට ලියාපදිංචි වී ඉගෙනීම ආරම්භ කරන්න.",
+  "student.courses.browse": "පාඨමාලා බලන්න",
+
+  "student.study.continueLearning": "ඉගෙනීම දිගටම",
+  "student.study.backToCourses": "මගේ පාඨමාලා වෙත",
+  "student.study.curriculum": "පාඨමාලා අන්තර්ගතය",
+  "student.study.selectLesson": "ආරම්භ කිරීමට පැති තීරුවෙන් පාඩමක් තෝරන්න.",
+  "student.study.noContent": "මෙම පාඩම සඳහා අන්තර්ගතය තවම නැත.",
+  "student.study.openPdf": "PDF සටහන් විවෘත කරන්න",
+  "student.study.openLink": "පාඩම් සබැඳිය විවෘත කරන්න",
+  "student.study.loading": "පාඨමාලාව පූරණය වෙමින්…",
+  "student.study.notFound": "පාඨමාලාව හමු නොවීය හෝ ඔබ ලියාපදිංචි වී නැත.",
+
+
+  "student.study.markLessonDone": "පාඩම සම්පූර්ණයි ලෙස සලකන්න",
+  "student.study.lessonDone": "පාඩම සම්පූර්ණයි",
+  "student.study.markModuleDone": "මොඩියුලය සම්පූර්ණයි",
+  "student.study.moduleDone": "මොඩියුලය සම්පූර්ණයි",
+
+  "student.study.progress": "ප්‍රගතිය",
+  "student.study.complete": "සම්පූර්ණ",
+
+  "student.study.learningPath": "ඉගෙනුම් මාවත",
+  "student.study.upNext": "ඊළඟට",
+  "student.study.lesson": "පාඩම",
+
+
+  "student.stats.enrolled" : "ලියාපදිංචි පාඨමාලා",
   "student.stats.hours": "ඉගෙනූ පැය",
   "student.stats.completed": "සම්පූර්ණ කළ",
   "student.stats.streak": "දින පිළිවෙළ",
@@ -1416,6 +1493,7 @@ const ta: Dict = {
   "home.featured.title": "சிறப்பு பாடத் தொடர்கள்",
   "home.featured.subtitle": "முன்னணி விரிவுரையாளர்களின் பிரபல தேர்வுகள்.",
   "home.featured.viewAll": "அனைத்து பாடநெறிகளும்",
+  "home.featured.empty": "வெளியிடப்பட்ட பாடநெறிகள் இன்னும் இல்லை. விரைவில் மீண்டும் பாருங்கள்.",
 
   "home.lecturers.title": "எங்கள் ஆசிரியர்களை சந்திக்க",
   "home.lecturers.subtitle": "அனுபவம் மிக்க மற்றும் வளரும் ஆசிரியர்கள் — ஒரே இடத்தில்.",
@@ -1462,6 +1540,14 @@ const ta: Dict = {
   "courses.results": "பாடநெறிகள் கிடைத்தன",
 
   "course.enroll": "சேருங்கள்",
+  "course.enrolling": "சேர்கிறது…",
+  "course.enrolled": "எனது பாடநெறிகளில் பார்க்க",
+  "course.enrollFailed": "சேர முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "course.enrollStudentsOnly": "மாணவர் கணக்குகள் மட்டுமே பாடநெறிகளில் சேர முடியும்.",
+
+  "course.enrollConfirm.title": "சேர்தலை உறுதிசெய்",
+  "course.enrollConfirm.description": "நீங்கள் சேர விரும்புகிறீர்களா",
+  "course.enrollConfirm.confirm": "ஆம், சேருங்கள்",
   "course.preview": "முன்னோட்டம்",
   "course.lecturer": "ஆசிரியர்",
   "course.lessons": "பாடங்கள்",
@@ -1688,8 +1774,11 @@ const ta: Dict = {
 
   "onboard.upload.empty": "படம் இல்லை",
   "onboard.upload.select": "படம் பதிவேற்று",
+  "onboard.upload.selectFile": "கோப்பை பதிவேற்று",
   "onboard.upload.replace": "மாற்று",
   "onboard.upload.uploading": "பதிவேற்றுகிறது…",
+  "onboard.upload.preparing": "கோப்பை தயார் செய்கிறது…",
+  "onboard.upload.complete": "பதிவேற்றம் முடிந்தது",
 
   "onboard.done.pendingTitle": "மறுபார்வைக்கு சமர்ப்பிக்கப்பட்டது",
   "onboard.done.pendingBody": "1-2 வேலை நாட்களில் தெரிவிப்போம்.",
@@ -1720,7 +1809,36 @@ const ta: Dict = {
   "student.nav.settings": "அமைப்புகள்",
   "student.nav.browse": "சந்தையை உலாவ",
 
-  "student.stats.enrolled": "சேர்க்கப்பட்ட பாடநெறிகள்",
+  "student.courses.subtitle": "நீங்கள் நிறுத்திய இடத்திலிருந்து தொடர்ந்து கற்று உங்கள் தொடர்ச்சியை வைத்திருங்கள்.",
+  "student.courses.empty.title": "இன்னும் பாடநெறிகள் இல்லை",
+  "student.courses.empty.subtitle": "சந்தையை உலாவி ஒரு பாடநெறியில் சேர்ந்து கற்றலைத் தொடங்குங்கள்.",
+  "student.courses.browse": "பாடநெறிகளை உலாவ",
+
+  "student.study.continueLearning": "கற்றலைத் தொடரவும்",
+  "student.study.backToCourses": "எனது பாடநெறிகளுக்கு",
+  "student.study.curriculum": "பாட உள்ளடக்கம்",
+  "student.study.selectLesson": "தொடங்குவதற்கு பக்கப்பட்டியிலிருந்து ஒரு பாடத்தைத் தேர்ந்தெடுக்கவும்.",
+  "student.study.noContent": "இந்த பாடத்திற்கு உள்ளடக்கம் இன்னும் இல்லை.",
+
+
+  "student.study.markLessonDone": "பாடத்தை முடிந்ததாகக் குறி",
+  "student.study.lessonDone": "பாடம் முடிந்தது",
+
+  "student.study.progress": "முன்னேற்றம்",
+  "student.study.complete": "முடிந்தது",
+
+  "student.study.learningPath": "கற்றல் பாதை",
+  "student.study.upNext": "அடுத்தது",
+  "student.study.lesson": "பாடம்",
+  "student.study.markModuleDone": "தொகுதியை முடிந்ததாகக் குறி",
+  "student.study.moduleDone": "தொகுதி முடிந்தது",
+
+  "student.study.openPdf": "PDF குறிப்புகளைத் திற",
+  "student.study.openLink": "பாட இணைப்பைத் திற",
+  "student.study.loading": "பாடநெறி ஏற்றப்படுகிறது…",
+  "student.study.notFound": "பாடநெறி கிடைக்கவில்லை அல்லது நீங்கள் சேரவில்லை.",
+
+  "student.stats.enrolled" : "சேர்க்கப்பட்ட பாடநெறிகள்",
   "student.stats.hours": "கற்ற மணிநேரம்",
   "student.stats.completed": "முடிக்கப்பட்டது",
   "student.stats.streak": "நாள் தொடர்ச்சி",

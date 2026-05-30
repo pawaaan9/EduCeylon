@@ -118,7 +118,7 @@ export default function LecturerDashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-ink-900 text-lg">Your courses</h2>
           <Link
-            href="/lecturer/courses"
+            href="/lecturer/courses/recorded"
             className="text-sm font-semibold text-brand-700 hover:text-brand-900 inline-flex items-center gap-1"
           >
             {t("action.viewAll")} <ArrowRightIcon className="h-4 w-4" />

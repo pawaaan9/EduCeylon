@@ -16,10 +16,9 @@ import type {
   Lecturer,
   Localized,
 } from "@/lib/data/types";
-import { listAllLecturerProfiles } from "./admin-lecturers";
+import { approvedLecturerMap } from "./approved-lecturers";
 import { LECTURER_COURSES, normalizeCourse } from "./courses";
 import { getAdmin } from "./firebase-admin";
-import { profileToPublicLecturer } from "./public-lecturers";
 
 const THUMBNAIL_GRADIENTS = [
   "linear-gradient(135deg,#1e3a8a,#2563eb 70%,#60a5fa)",
@@ -87,16 +86,6 @@ function mapModules(modules: CourseModule[]): PublicModule[] {
   }));
 }
 
-async function approvedLecturerMap(): Promise<Map<string, Lecturer>> {
-  const profiles = await listAllLecturerProfiles();
-  const map = new Map<string, Lecturer>();
-  for (const profile of profiles) {
-    if (profile.approvalStatus !== "approved") continue;
-    map.set(profile.uid, profileToPublicLecturer(profile));
-  }
-  return map;
-}
-
 export async function listPublishedCoursesRaw(): Promise<LecturerCourse[]> {
   const { db } = getAdmin();
   const snap = await db
@@ -149,6 +138,7 @@ export function lecturerCourseToPublic(
           slug: lecturer.slug,
           name: lecturer.name,
           title: lecturer.title,
+          photoURL: lecturer.photoURL,
         }
       : {
           id: course.lecturerId,

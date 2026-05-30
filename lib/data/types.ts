@@ -21,6 +21,47 @@ export type Lesson = {
   preview?: boolean;
 };
 
+export type StudyLesson = {
+  id: string;
+  type: "video" | "pdf" | "assignment" | "quiz" | "external" | "live";
+  title: Localized;
+  durationMin: number;
+  videoURL?: string;
+  pdfURL?: string;
+  externalURL?: string;
+};
+
+export type StudyModule = {
+  id: string;
+  title: Localized;
+  lessons: StudyLesson[];
+};
+
+export type StudyCourse = {
+  id: string;
+  slug: string;
+  title: Localized;
+  longDescription: Localized;
+  thumbnailGradient: string;
+  thumbnailURL?: string;
+  lecturer: Pick<Lecturer, "id" | "slug" | "name" | "title" | "photoURL">;
+  modules: StudyModule[];
+};
+
+export type CourseStudyProgress = {
+  completedLessonIds: string[];
+  completedModuleIds: string[];
+  updatedAt?: string;
+  /** 0–100, set by API when total lesson count is known. */
+  percent?: number;
+  completedLessons?: number;
+  totalLessons?: number;
+};
+
+export type StudyCourseWithProgress = StudyCourse & {
+  progress: CourseStudyProgress;
+};
+
 export type CourseModule = {
   id: string;
   title: Localized;
@@ -68,9 +109,11 @@ export type Course = {
   trending?: boolean;
   thumbnailGradient: string;
   thumbnailURL?: string;
-  lecturer: Pick<Lecturer, "id" | "slug" | "name" | "title">;
+  lecturer: Pick<Lecturer, "id" | "slug" | "name" | "title" | "photoURL">;
   modules: CourseModule[];
   status?: "published" | "draft" | "pending" | "rejected";
+  /** Enrollment progress 0–100 (student my-courses only). */
+  progressPercent?: number;
 };
 
 export type LiveSession = {

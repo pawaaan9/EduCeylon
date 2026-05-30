@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { GradientHeader } from "@/components/GradientHeader";
+import { CourseProgressBar } from "@/components/CourseProgressBar";
 import { StatCard } from "@/components/StatCard";
 import { CourseCard } from "@/components/CourseCard";
 import {
@@ -13,19 +15,40 @@ import {
   ArrowRightIcon,
   CalendarIcon,
 } from "@/components/icons";
+import { fetchMyEnrolledCourses } from "@/lib/api/enrollments";
+import type { Course } from "@/lib/data/types";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { firstName, resolveDisplayName } from "@/lib/user/display-name";
 import { COURSES, LIVE_SESSIONS } from "@/lib/data/mock";
 import { formatLiveSessionStart } from "@/lib/format-live-session-start";
 
-const ENROLLED = [COURSES[0], COURSES[2], COURSES[3]];
 const RECOMMENDED = [COURSES[5], COURSES[4], COURSES[7]];
 
 export default function StudentDashboardPage() {
   const { t, locale } = useI18n();
   const { user, profile } = useAuth();
   const greetingName = firstName(resolveDisplayName(profile, user));
+  const [enrolled, setEnrolled] = useState<Course[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const list = await fetchMyEnrolledCourses(token);
+        if (!cancelled) setEnrolled(list);
+      } catch {
+        if (!cancelled) setEnrolled([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const enrolledCount = enrolled.length;
 
   return (
     <>
@@ -40,7 +63,7 @@ export default function StudentDashboardPage() {
         }
       >
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl">
-          <HeroStat value="3" label={t("student.stats.enrolled")} />
+          <HeroStat value={String(enrolledCount)} label={t("student.stats.enrolled")} />
           <HeroStat value="42h" label={t("student.stats.hours")} />
           <HeroStat value="8" label={t("student.stats.completed")} />
           <HeroStat value="12" label={t("student.stats.streak")} />
@@ -50,9 +73,8 @@ export default function StudentDashboardPage() {
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label={t("student.stats.enrolled")}
-          value={3}
+          value={enrolledCount}
           icon={<BookIcon className="h-5 w-5" />}
-          trend={{ value: "+1 this month", positive: true }}
         />
         <StatCard
           label={t("student.stats.hours")}
@@ -78,45 +100,72 @@ export default function StudentDashboardPage() {
 
       <section className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <h2 className="font-semibold text-ink-900 text-lg mb-4">
-            {t("student.continue.title")}
-          </h2>
-          <div className="flex flex-col gap-3">
-            {ENROLLED.map((c, i) => {
-              const progress = [62, 28, 91][i] ?? 50;
-              return (
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-ink-900 text-lg">
+              {t("student.continue.title")}
+            </h2>
+            {enrolled.length > 0 && (
+              <Link
+                href="/student/courses"
+                className="text-sm font-semibold text-brand-700 hover:text-brand-900 inline-flex items-center gap-1"
+              >
+                {t("action.viewAll")} <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+          {enrolled.length === 0 ? (
+            <div className="card p-8 text-center">
+              <p className="text-sm text-ink-500">{t("student.courses.empty.subtitle")}</p>
+              <Link href="/courses" className="btn btn-primary mt-4 inline-flex">
+                {t("student.courses.browse")}
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {enrolled.slice(0, 3).map((c) => (
                 <Link
                   key={c.id}
-                  href={`/courses/${c.slug}`}
+                  href={`/student/courses/${c.slug}/learn`}
                   className="card p-4 flex gap-4 items-center hover:shadow-card hover:border-brand-200 transition-all"
                 >
                   <div
-                    className="h-20 w-32 rounded-lg flex-shrink-0 flex items-center justify-center text-white"
-                    style={{ background: c.thumbnailGradient }}
+                    className="h-20 w-32 rounded-lg flex-shrink-0 flex items-center justify-center text-white overflow-hidden relative"
+                    style={
+                      c.thumbnailURL
+                        ? undefined
+                        : { background: c.thumbnailGradient }
+                    }
                   >
-                    <PlayCircleIcon className="h-7 w-7" />
+                    {c.thumbnailURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.thumbnailURL}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : null}
+                    <PlayCircleIcon className="h-7 w-7 relative z-10 drop-shadow" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-ink-500">{c.lecturer.name}</div>
                     <div className="font-semibold text-ink-900 line-clamp-1">
                       {c.title[locale] ?? c.title.en}
                     </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <div className="flex-1 h-1.5 rounded-full bg-ink-100 overflow-hidden">
-                        <div
-                          className="h-full brand-gradient"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-ink-700">
-                        {progress}%
-                      </span>
+                    <div className="mt-2">
+                      <CourseProgressBar
+                        percent={c.progressPercent ?? 0}
+                        size="sm"
+                        showLabel={false}
+                      />
+                    </div>
+                    <div className="mt-1.5 text-xs font-semibold text-brand-700">
+                      {t("student.study.continueLearning")}
                     </div>
                   </div>
                 </Link>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
